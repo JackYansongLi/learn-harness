@@ -14,10 +14,10 @@
 
 为了完成调查，作业分成两题，都在 `main.py` 中：
 
-| 题目 | 已经提供 | 你要实现 |
-| --- | --- | --- |
-| 第一题：调用两个 Subagent | 论文 Subagent、环境 Subagent，以及它们的工具和循环 | 补全 `MainAgent.run()`：执行模型提出的任务请求，把两个 Subagent 的回答交回主循环 |
-| 第二题：增加复现难度 Subagent | 数据目录检查、训练步数计算工具 | 实现 `MainAgent.run_difficulty()`：写工作说明，创建 Subagent，让它根据前两份结果调用工具并给出建议 |
+| 题目                          | 已经提供                                           | 你要实现                                                                                           |
+| ----------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 第一题：调用两个 Subagent     | 论文 Subagent、环境 Subagent，以及它们的工具和循环 | 补全 `MainAgent.run()`：执行模型提出的任务请求，把两个 Subagent 的回答交回主循环                   |
+| 第二题：增加复现难度 Subagent | 数据目录检查、训练步数计算工具                     | 实现 `MainAgent.run_difficulty()`：写工作说明，创建 Subagent，让它根据前两份结果调用工具并给出建议 |
 
 前面的课讲过，Agent 开发就是在 loop 里加条件：有工具请求就执行，把结果交回模型，再进入下一轮；没有工具请求就返回答案。这次要接上的，是循环中的 Subagent 调用。Main Agent 分配任务后等待，Subagent 运行自己的循环并返回回答，Main Agent 再带着这份回答继续。
 
@@ -42,6 +42,8 @@
 > 本课不共享完整对话。这里的上下文，指每次请求模型时发给它的消息。Main Agent 和 Subagent 分别维护自己的 `messages`：Main Agent 把任务写进 `description` 传过去，Subagent 完成后只返回回答。Subagent 不会自动看到 Main Agent 之前的对话，Main Agent 也不会自动拿到 Subagent 读过的全部原文。
 >
 > 因此，要让复现难度 Subagent 参考论文和环境结果，Main Agent 就得把这些信息写进任务里。共用 API 客户端不会让消息自动共享；其他系统也可以选择传递完整历史或共用资料，具体取决于代码怎样传数据。
+
+> **Question**: 一群 Agent 一起写代码然后抽一个最好的 v.s. 一半的 Agent 写代码 + 一半的 Agent 写测试 & 给代码纠错，哪个效果好？
 
 > **这种分工叫作什么？**
 >
@@ -73,8 +75,8 @@
 
 打开 `main.py`，找到 `build_parent()`。这里准备了两个 Subagent：
 
-| Subagent                | 工作说明                   | 能调用的工具                                                     |
-| --------------------- | -------------------------- | ---------------------------------------------------------------- |
+| Subagent                   | 工作说明                   | 能调用的工具                                                     |
+| -------------------------- | -------------------------- | ---------------------------------------------------------------- |
 | paper，论文 Subagent       | `knowledge/paper.md`       | 读取 PDF、查找关键词；提供源码时还能读取代码                     |
 | environment，环境 Subagent | `knowledge/environment.md` | 检查 PyTorch 和可用设备；选择 AlexNet 实验时还能运行模型单步检查 |
 
@@ -107,7 +109,7 @@ task(agent_type="environment", description="检查 PyTorch 和本机可用设备
 | --------------------- | -------------------------------------------------------------------------------- |
 | `self.dispatch(call)` | 根据工具名找到函数、检查参数，再调用函数；这里的 dispatch 就是“执行这次工具请求” |
 | `task` 的 `handler`   | 保存 `self.call_subagent` 这个函数；handler 表示实际要执行的函数                 |
-| `call_subagent()`     | 按 agent_type 找到 Subagent，调用它的 run，等待回答                                 |
+| `call_subagent()`     | 按 agent_type 找到 Subagent，调用它的 run，等待回答                              |
 
 因此，在主循环里执行 `self.dispatch(call)`，最终会进入对应 Subagent 的 `run()`。这行调用返回时，Subagent 已经完成任务，返回值就是它的回答。
 
@@ -136,7 +138,7 @@ flowchart TD
 | ------------ | --------------------------------------------------- |
 | role         | 字符串 `"tool"`，表示这是工具返回的结果             |
 | tool_call_id | 当前请求的 `call["id"]`，让模型知道回答对应哪个请求 |
-| content      | 刚刚得到的 Subagent 回答                                |
+| content      | 刚刚得到的 Subagent 回答                            |
 
 完成本轮所有请求后，继续循环，把这些回答发给 Main Agent 的模型。不要在收到第一份 Subagent 回答时就 `return`：它只是调查的一部分，Main Agent 还要根据结果继续工作。
 
