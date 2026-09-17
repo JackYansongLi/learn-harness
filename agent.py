@@ -97,8 +97,13 @@ class Agent:
         raise NotImplementedError("TODO 1: dispatch")
 
     def run(self, prompt: str) -> str:
-        """TODO 2：新建 messages，循环请求模型、执行工具，直到回答或达到轮数上限。"""
-        raise NotImplementedError("TODO 2: run")
+        """TODO 2：补全 Agent loop；每轮请求模型一次，再判断继续还是结束。"""
+        # 先在循环外新建本次任务的 messages，再补全下面每一轮的处理。
+        for _ in range(self.max_turns):
+            # 有工具请求：执行并保存结果，继续下一轮。
+            # 没有工具请求：返回有效回答；空回答则报错。
+            raise NotImplementedError("TODO 2: run")
+        # 轮数用完仍没返回时，抛出 StepLimitExceeded。
 
     def spawn_subagent(self, agent_type: str, description: str) -> str:
         """TODO 3：取专家配置，创建新 Agent，只传任务，返回有长度上限的回答。"""

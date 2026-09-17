@@ -16,7 +16,7 @@ flowchart TD
     M --> R[复现调查报告]
 ```
 
-图中的任务按顺序执行，每次等一个 Subagent 返回，Main Agent 才继续。本课要你实现的，就是分配任务、调用工具和收回结果的这段程序。
+这些任务都通过 `agent.py` 中 `run()` 的循环执行：每轮请求模型，有工具请求就执行并继续，没有工具请求就检查回答并返回。Main Agent 请求 task 时，会等另一个 Agent 跑完自己的循环，再带着结果继续。
 
 ## 先完成三个方法，再运行调查
 
@@ -24,11 +24,11 @@ flowchart TD
 
 | 文件 | 你需要看什么 |
 | --- | --- |
-| `agent.py` | Agent 的三个 TODO；同文件还提供工具数据结构和 DeepSeek API 适配 |
+| `agent.py` | run 中的循环，以及 dispatch、spawn_subagent 两个 TODO；工具说明和 API 请求已提供 |
 | `main.py` | 三位专家的配置、程序入口和进度条 |
 | `tools.py` | PDF、源码、数据目录与 PyTorch 工具，已写好 |
 
-先读[教程](docs/tutorial.md)，再按[作业说明](docs/assignment.md)补全 `agent.py` 中的 `dispatch`、`run`、`spawn_subagent`。公开仓库暂不提供答案，初始代码会在 TODO 处停止。
+先读[教程](docs/tutorial.md)，跟着循环看“什么时候继续、什么时候结束”，再按[作业说明](docs/assignment.md)补全 `agent.py` 中的 `dispatch`、`run`、`spawn_subagent`。公开仓库暂不提供答案，初始代码会在 TODO 处停止。
 
 安装 [uv](https://docs.astral.sh/uv/getting-started/installation/) 后，在 macOS / Linux 终端准备作业环境：
 

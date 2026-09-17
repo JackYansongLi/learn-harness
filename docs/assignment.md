@@ -22,9 +22,11 @@ call = {
 
 本课参数均为必填字符串：JSON 必须是 object，键恰好匹配 `parameters.properties`，值为字符串。无参数工具传 `{}`，不用实现通用 JSON Schema 校验器。
 
-## 第二题：把工具结果发回模型
+## 第二题：补全 run 中的循环
 
-实现 `run(prompt)`。每次调用都新建一个 messages 列表，先放入 system 和 user 两条消息，内容分别是 `self.system` 和本次 prompt。
+`run(prompt)` 中已经有一个 `for` 循环，每轮请求一次模型。你需要补全循环前的准备，以及循环内“继续还是结束”的判断。
+
+先在循环外新建 messages 列表，放入 system 和 user 两条消息，内容分别是 `self.system` 和本次 prompt。
 
 将当前工具表中每个 Tool 的 `schema()` 结果组成 schemas 列表，再调用 `self.model.complete(messages, schemas)`。它返回一条 assistant 消息：可能含有 `tool_calls`，也可能直接给出回答。
 
@@ -34,7 +36,9 @@ call = {
 {"role": "tool", "tool_call_id": "read_1", "content": "刚刚读取的结果"}
 ```
 
-`tool_call_id` 必须对应请求的 id，模型才能知道这条结果回答的是哪次调用。保存完本轮所有工具结果，再带着更新后的 messages 请求模型。直到它不再请求工具，才返回有效的回答文本。
+`tool_call_id` 必须对应请求的 id，模型才能知道这条结果回答的是哪次调用。保存完本轮所有工具结果，再进入下一轮，把更新后的 messages 发给模型。没有工具请求时，检查回答是否为空：非空就返回，空回答就抛 ModelOutputError。
+
+如果 for 循环用完了 max_turns 次仍没有返回，在循环后抛 StepLimitExceeded。
 
 ## 第三题：按类型创建专家
 
