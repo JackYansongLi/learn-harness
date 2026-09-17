@@ -112,30 +112,142 @@ Main Agent 根据这些返回结果生成报告，已提供的入口代码会将
 
 ## 2. 第一题：让主循环调用它们
 
-打开 `main.py` 的 `MainAgent.run()`。外层 `for _ in range(self.max_turns)` 负责一轮轮请求模型；内层 `for call in calls` 负责逐个执行本轮的工具请求。第一题补的是内层循环中的 TODO。模型请求和最终回答的处理都已写好。
+上一节的两个 Subagent 已经能独立工作：一个读论文，一个检查本机。现在要让 Main Agent 用上它们。假设你提交的任务是“调查这篇论文在本机的复现条件”，Main Agent 的模型决定先查论文，再检查机器。接下来，谁来执行这个决定？执行完，又怎样让模型知道结果？第一题要补的就是这两步。
 
-`MainAgent(Agent)` 表示 Main Agent 可以使用 `Agent` 已提供的方法，例如执行工具的 `dispatch()`。但它有自己的 `run()`：Main Agent 执行 `MainAgent.run()`，Subagent 执行 `Agent.run()`。这次只改前者。
+先打开 `main.py`，找到 `class MainAgent(Agent)`，再往下找到它的 `run()`。里面有一处第一题 TODO，目前用 `raise NotImplementedError(...)` 占位，程序运行到这里就会停下来。先记住这个位置，我们从函数开头读起，看它为什么会走到这里。
 
-Main Agent 通过名为 `task` 的工具分配工作。模型返回工具名和参数，由 Python 代码执行。例如，同一轮可以收到下面两个请求。这里用函数调用的样子简写，实际请求保存在回复的 `tool_calls` 字段中：
+### 先分清：这次运行的是谁的 `run()`？
+
+你会发现 `main.py` 和 `agent.py` 都有一个 `run()`。它们属于不同的类，用途也不同：
+
+- `main.py` 中的 `MainAgent.run()` 负责 Main Agent 的循环。第一题在这里补代码。
+- `agent.py` 中的 `Agent.run()` 是已经写好的循环。论文 Subagent 和环境 Subagent 都是 `Agent` 对象，调用它们的 `run()` 就会进入这里。
+
+沿用上一节的名字，假设 `parent` 保存 Main Agent，那么调用 `parent.run(prompt)` 时，就会进入 `MainAgent.run()`。这里的 `prompt` 是交给它的任务，`self` 则指 `parent` 这个对象。函数中的 `self.model`、`self.tools`，就是这个 Main Agent 保存的模型调用对象和工具。
+
+再看 `MainAgent(Agent)` 这对括号。它表示 Main Agent 可以沿用 `Agent` 已有的方法，这在 Python 中叫“继承”。例如，`MainAgent` 没有另写 `dispatch()`，调用 `self.dispatch(...)` 时就会使用 `Agent` 中的实现。`run()` 则在 `MainAgent` 中重新写了一份，所以 `parent.run(...)` 会使用这一份。**调用哪个对象的方法，就先看这个对象所属的类提供了什么。**
+
+### 第一次请求模型时，发给它什么？
+
+看 `MainAgent.run()` 的开头：
+
+```python
+messages = [
+    {"role": "system", "content": self.system},
+    {"role": "user", "content": prompt},
+]
+```
+
+`messages` 是这次任务的消息列表。开始时只有两条：第一条是 Main Agent 的工作说明，要求它先找论文 Subagent 和环境 Subagent；第二条是你交给它的任务。此时还没有调查结果，因为 Subagent 还没有运行。
+
+接下来，程序进入外层循环：
+
+```python
+for _ in range(self.max_turns):
+    answer = self.model.complete(
+        messages,
+        [t.schema() for t in self.tools.values()],
+    )
+    messages.append(answer)
+```
+
+先看中间的 `complete(...)`。它带着当前的 `messages` 请求模型，同时告诉模型有哪些工具可用。方括号里的代码会逐个取出 `self.tools` 中的工具，用 `schema()` 生成工具说明，包含名称、用途和参数格式。第一题的 Main Agent 只有一个工具，名叫 `task`，用来分配子任务。
+
+模型收到的是这些说明。真正执行工具的 Python 函数保存在程序里，稍后再调用。模型本轮的回复存进 `answer`，紧接着的 `messages.append(answer)` 把回复记下来，后面继续请求模型时还要带上它。这里的 `append` 只是保存记录；下一次执行 `complete(...)`，才会再次发送消息。
+
+最外面的 `for` 让这个过程能够重复。`self.max_turns` 限制 Main Agent 最多请求模型多少轮；下划线 `_` 表示这里不需要使用轮次的编号。之所以要重复，是因为第一次回复可能只是“请先查一下论文”。等论文查完，还要带着结果再问模型，才能继续完成调查。
+
+### 模型回复了，为什么还不能直接返回？
+
+程序接着看这条回复里有没有工具请求：
+
+```python
+calls = answer.get("tool_calls") or []
+```
+
+`tool_calls` 保存模型本轮提出的工具请求。没有这个字段，或者它的值为空时，就用空列表 `[]`。后面的 `if not calls` 处理这种情况：检查文字回答是否有效，然后用 `return text` 结束本次任务。这部分已经写好。
+
+如果 `calls` 里有内容，就说明模型还要求程序执行工具。此时应该先完成这些请求，再让模型看到结果。本课中，模型可以通过 `task` 指定一个 Subagent，并说明让它做什么。
+
+例如，模型可能在一轮中提出两个请求。为了先看懂它们的意思，可以把请求读成下面的样子；这是便于阅读的简写，项目里没有一个叫 `task()` 的 Python 函数：
 
 ```text
 task(agent_type="paper", description="查清模型结构和训练设置，注明页码")
 task(agent_type="environment", description="检查 PyTorch 和本机可用设备")
 ```
 
-`agent_type` 指定找谁，`description` 说明让它做什么。模型也可能分两轮提出这两个请求，所以不能在循环里写死“先调用一次 paper，再调用一次 environment”。你要逐个执行模型本轮给出的请求。
+`agent_type` 指定找谁：`paper` 是论文 Subagent，`environment` 是环境 Subagent。`description` 是交给这个 Subagent 的任务。模型返回这些名字和文字时，两个 Subagent 都还没开始执行。
 
-### 请求怎样找到 Subagent？
+要把请求执行起来，程序就用到了内层的 `for call in calls`。`calls` 是本轮的请求列表，`call` 是正在处理的其中一条。如果列表里先放论文请求、再放环境请求，程序就先等论文 Subagent 完成，再执行环境请求。**这里是按顺序执行，一轮有两个请求不表示同时运行两个 Subagent。**
 
-这一步已经写好，你可以沿着下面三处代码看：
+模型也可能第一轮只请求论文 Subagent，拿到回答后，第二轮才请求环境 Subagent。所以你要处理的是模型实际返回的 `calls`，不能把程序写成固定调用一次论文、再调用一次环境。两层循环在这里分工：外层负责一轮轮请求模型，内层负责做完当前这轮回复里要求做的事。
 
-| 位置                  | 做什么                                                                           |
-| --------------------- | -------------------------------------------------------------------------------- |
-| `self.dispatch(call)` | 根据工具名找到函数、检查参数，再调用函数；这里的 dispatch 就是“执行这次工具请求” |
-| `task` 的 `handler`   | 保存 `self.call_subagent` 这个函数；handler 表示实际要执行的函数                 |
-| `call_subagent()`     | 按 agent_type 找到 Subagent，调用它的 run，等待回答                              |
+### 拿一条请求，沿着代码找到论文 Subagent
 
-所以，执行一个有效的 `task` 请求时，`self.dispatch(call)` 会沿着这几步进入 Subagent 的 `run()`，等它返回后再继续主循环。如果 `dispatch` 返回了错误信息，也要把它作为工具结果交回模型。
+现在看内层循环取出的 `call`。下面是一条示例请求，格式和程序收到的一样：
+
+```python
+call = {
+    "id": "call_paper_1",
+    "type": "function",
+    "function": {
+        "name": "task",
+        "arguments": '{"agent_type": "paper", "description": "查清模型结构和训练设置，注明页码"}',
+    },
+}
+```
+
+`name` 指明要使用 `task` 工具。`arguments` 保存工具参数，内容是一个 JSON 格式的字符串；其中 `agent_type` 的值是 `paper`。`id` 则用来对应这次请求和稍后的结果：结果返回时，要让模型知道它回答的是哪一次请求。
+
+接下来需要调用 `self.dispatch(call)`。`dispatch` 这个名字在这里可以理解为“执行这条工具请求”。它已经写在 `agent.py` 中，你不需要实现它，但要看懂它怎样找到目标。沿着这条论文请求，执行过程有四步。
+
+**第一步：根据工具名，找到 `task` 的记录。** 打开 `Agent.dispatch()`，看开头两行：
+
+```python
+name = call["function"]["name"]
+tool = self.tools.get(name)
+```
+
+对于上面的例子，`name` 是 `"task"`，所以找到的是 Main Agent 的 `self.tools["task"]`。注意，虽然方法写在 `Agent` 类里，这次调用中的 `self` 仍然是 Main Agent；程序还没有进入论文 Subagent。
+
+**第二步：找到这个工具保存的执行函数。** 回到 `main.py` 的 `MainAgent.__init__()`，找到 `self.tools["task"] = Tool(...)`。创建这个工具时，最后传入的是 `self.call_subagent`。这里没有括号，表示先把函数保存起来，等收到请求再执行。
+
+这几行在创建 Main Agent 时就执行过了；我们现在回看它们，是为了弄清工具里保存了哪个函数。
+
+`Tool` 把这个函数存放在名叫 `handler` 的字段里。你在 `dispatch()` 中看到的 `tool.handler`，在这一次调用里就是 Main Agent 的 `call_subagent`。因此，模型只需要返回工具名 `task`，程序就能找到要执行的函数。
+
+**第三步：读出参数，再调用函数。** `dispatch()` 用 `json.loads(...)` 把 `arguments` 字符串读成字典，检查参数后，执行：
+
+```python
+return tool.handler(**args)
+```
+
+这里 `**args` 表示把字典里的内容作为函数参数传进去。对于这条请求，就是把 `agent_type="paper"` 和那句任务说明交给 `call_subagent()`。
+
+**第四步：选中论文 Subagent，进入它自己的循环。** 在 `MainAgent.call_subagent()` 中，你能找到：
+
+```python
+summary = self.subagents[agent_type].run(description)
+```
+
+这时 `agent_type` 是 `"paper"`，所以取出的就是前面创建的论文 Subagent。它是一个 `Agent` 对象，调用它的 `run(description)`，会进入 `agent.py` 的 `Agent.run()`。从这里开始，那次 `run()` 中的 `self` 指向论文 Subagent；它使用自己的工作说明、工具和新建的消息列表，可以请求模型、读取 PDF，再带着读到的内容继续循环。
+
+### Subagent 返回后，程序接着去哪？
+
+论文 Subagent 工作期间，Main Agent 会停在调用它的位置等待。等它的 `run()` 返回文字回答，这份回答就沿着刚才的调用顺序往回走：
+
+```text
+论文 Subagent 的 run() 返回回答
+    → Main Agent 的 call_subagent() 收到回答，过长时截短
+    → Main Agent 的 dispatch() 返回这份结果
+    → MainAgent.run() 的内层循环拿到结果
+```
+
+论文 Subagent 的 `return` 只结束它自己的这次运行。Main Agent 的任务还没有结束：如果本轮还有环境请求，就继续执行；本轮请求全部处理完，才进入外层下一轮，再次调用模型。
+
+这也解释了为什么第一题除了“执行请求”，还要“保存结果”。如果不把 Subagent 的回答放回 Main Agent 的 `messages`，下一轮请求模型时，它就看不到刚才查到了什么。论文 Subagent 内部读 PDF 的原始记录留在它自己的消息列表里，返回给 Main Agent 的是最后整理出的回答。
+
+你补完第一题后，主循环应当按下面的路线继续运行。图中标了“第一题”的两处，就是你要接上的步骤：
 
 ```mermaid
 flowchart TD
