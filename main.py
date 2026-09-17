@@ -46,7 +46,9 @@ DIFFICULTY_TASK = """
 
 
 class MainAgent(Agent):
-    def __init__(self, model, subagents, *, difficulty_tools=None, max_turns=10):
+    def __init__(
+        self, model, subagents, *, difficulty_tools: dict[str, Tool] | None = None, max_turns=10
+    ):
         system = MAIN_SYSTEM + (DIFFICULTY_TASK if difficulty_tools is not None else "")
         super().__init__(model, system, {}, max_turns=max_turns)
         self.subagents = subagents
@@ -93,8 +95,11 @@ class MainAgent(Agent):
             raise ValueError(f"unknown subagent: {agent_type}")
         return summary[:2400] + "\n[summary truncated]" if len(summary) > 2400 else summary
 
-    def run_difficulty(self, description):
+    def run_difficulty(self, description: str) -> str:
         """第二题：读取工作说明，创建复现难度 Subagent，执行 description。"""
+        # 已提供的检查：第一题没有配置复现难度工具，不能调用这个 Subagent。
+        if self.difficulty_tools is None:
+            raise ValueError("difficulty Subagent is not enabled")
         # 从 KNOWLEDGE / "difficulty.md" 读取 UTF-8 文本，作为 system。
         # 可用工具已放在 self.difficulty_tools：inspect_dataset、training_workload。
         # 用 Agent 创建独立的 Subagent，共用 self.model，使用 self.max_turns。
