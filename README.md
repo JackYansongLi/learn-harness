@@ -28,7 +28,7 @@ flowchart TD
 | `main.py` | 三位专家的配置、程序入口和进度条 |
 | `tools.py` | PDF、源码、数据目录与 PyTorch 工具，已写好 |
 
-先读[教程](docs/tutorial.md)，跟着循环看“什么时候继续、什么时候结束”，再按[作业说明](docs/assignment.md)补全 `agent.py` 中的 `dispatch`、`run`、`spawn_subagent`。公开仓库暂不提供答案，初始代码会在 TODO 处停止。
+按[教程](docs/tutorial.md)理解循环，再根据同一页中的作业要求补全 `agent.py` 中的 `dispatch`、`run`、`spawn_subagent`。公开仓库暂不提供答案，初始代码会在 TODO 处停止。
 
 安装 [uv](https://docs.astral.sh/uv/getting-started/installation/) 后，在 macOS / Linux 终端准备作业环境：
 

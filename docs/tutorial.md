@@ -198,7 +198,61 @@ flowchart LR
 | dispatch | 执行本轮的一次工具请求，把结果交回循环 |
 | spawn_subagent | 在执行 task 时创建 child，等待 child 的循环返回 |
 
-`run()` 已经留出了 `for`，内部判断和消息保存需要你补全。工具名、参数和错误处理的具体要求见[作业说明](assignment.md)。写完后，在仓库目录运行测试：
+只补全 `Agent` 的这三个方法，可以添加 import 和小型辅助函数。同文件中的 API 请求、工具数据结构，以及 `main.py`、`tools.py` 和测试都已提供，不需要修改。
+
+### dispatch：执行一次工具请求
+
+模型返回的读取请求如下：
+
+```python
+call = {
+    "id": "read_1",
+    "type": "function",
+    "function": {"name": "read_paper", "arguments": '{"pages":"1"}'},
+}
+```
+
+用 `function.name` 查当前对象的 `self.tools`，将 `function.arguments` 从 JSON 字符串解析成字典，再把参数传给工具的 `handler`。
+
+本课只使用字符串参数：参数必须是字典，键恰好对应 `parameters.properties`，值都是字符串。没有参数的工具传 `{}`。未知工具或参数不符合要求时，返回 `Error:` 开头的文本；不要绕过工具表去调用其他助手的函数。
+
+### run：补全循环中的判断
+
+循环前新建 messages，放入 system 和 user 两条消息，内容分别是 `self.system` 和本次 prompt。再将每个工具的 `schema()` 结果组成 schemas 列表。
+
+每轮调用 `self.model.complete(messages, schemas)`，先把返回的 assistant 消息存进 messages。有 `tool_calls` 时逐个执行 dispatch，为每个结果追加一条 tool 消息。例如，上面的读取请求对应：
+
+```python
+{"role": "tool", "tool_call_id": "read_1", "content": "刚刚读取的结果"}
+```
+
+`tool_call_id` 必须对应请求的 id。保存完本轮所有结果，再进入下一轮。没有工具请求时，返回非空回答；回答为空就抛 `ModelOutputError`。循环用完 max_turns 次还没返回，则抛 `StepLimitExceeded`。
+
+### spawn_subagent：运行另一个助手的循环
+
+1. 按 agent_type 从 `self.specialists` 找配置，未知类型抛 `ValueError`。
+2. 复制这位助手的工具表并移除 task，不修改原表。
+3. 用本文件的 Agent 创建 child，复用 model，使用这位助手的 system、复制后的工具表和相同的 max_turns，不传 specialists。
+4. 只把 description 传给 `child.run()`，等待它返回回答。
+5. 回答超过 `MAX_SUMMARY_CHARS` 时截断，追加 `\n[summary truncated]`。
+
+每次调用都创建新 child。它的 run 会新建消息列表，不能沿用上一次任务的消息，也不能复制 parent 的消息。
+
+### 错误怎样处理
+
+| 情况 | 处理方式 |
+| --- | --- |
+| 工具名、JSON 或参数有误 | dispatch 返回 `Error:` 开头的文本 |
+| 工具抛出 ValueError、TypeError、OSError、AgentError | dispatch 转成 `Error:` 文本 |
+| 方法未写完或其他程序错误 | 正常抛出，不用 `except Exception` 吞掉 |
+| 没有工具请求，回答为空 | run 抛 ModelOutputError |
+| 循环次数用完，仍无最终回答 | run 抛 StepLimitExceeded |
+
+这些异常类和常量都在 `agent.py` 中，注释说明了各自的用途。
+
+## 8. 检查作业，再运行真实调查
+
+写完后，在仓库目录运行测试：
 
 ```bash
 uv sync --locked
@@ -220,3 +274,24 @@ uv run --extra ml python main.py --trace
 `main.py` 默认读取 `examples/alexnet/paper.pdf`，并提供 AlexNet 单步实验。明确指定设备时，在命令末尾加 `--device cuda`、`--device mps` 或 `--device cpu`。指定的设备不可用时会报告失败，不会换到其他设备。
 
 运行时，找到一次工具请求，看看它的结果怎样进入下一轮；再找到一次 task，看看 child 怎样开始循环、返回后 parent 怎样继续。最后打开 `output/report.md`，对照论文和工具结果检查结论。
+
+看过报告后，再用验收程序检查助手的实际调用：
+
+```bash
+uv run --extra ml python -m tests.smoke
+```
+
+验收会重新发起一次调查，检查三位助手、PDF 读取、模型实验、数据目录检查和训练步数计算是否实际执行，并核对参数、输入和输出的设备。它需要密钥，也会消耗 API 额度。记录保存在 `output/smoke.json`，报告保存在 `output/report.md`。
+
+验收命令同样支持 `--device cuda`、`--device mps`、`--device cpu`。这些检查只能确认执行过程，论文结论仍需要你对照原文核查。
+
+## 9. 提交什么
+
+提交 `agent.py`、测试结果和 AlexNet 论文调查报告，并回答：
+
+1. `task.handler` 执行时 self 是谁？进入 `child.run()` 后呢？
+2. 难度助手看不到前两位的消息，Main Agent 应在 description 中传什么？
+3. 报告里哪条结论来自论文，哪条来自本机实测？分别指出证据。
+4. 本机单步实验通过后，距离复现论文指标还缺什么？
+
+公开仓库暂不提供参考答案。用测试检查自己的实现，再用实际调用记录解释它如何运行。
