@@ -43,6 +43,8 @@ def render_page(source: str) -> str:
         "    attrs:\n"
         "      type: module\n"
         "      src: /scripts/subagent-diagrams.js\n"
+        "  - tag: style\n"
+        "    content: '.sl-markdown-content blockquote :is(th, td) { min-width: 7rem; }'\n"
         "---\n\n"
     )
     links = (
