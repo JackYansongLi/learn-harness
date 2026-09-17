@@ -1,5 +1,6 @@
-"""作业：补全 Agent 的三个 TODO；API 和工具数据结构已提供。"""
+"""作业：在 spawn_subagent 中创建子助手，并调用它的 run。其余代码已提供。"""
 
+import json
 import os
 from dataclasses import dataclass
 from typing import Callable, cast
@@ -8,37 +9,6 @@ from openai import OpenAI, omit
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
 
 MAX_SUMMARY_CHARS = 2400
-
-
-# 这三个类用来区分错误类型，错误消息的保存和显示沿用 RuntimeError。
-# pass 表示不添加其他行为，这里已经写完，不是需要你补全的作业。
-class AgentError(RuntimeError):
-    """本课运行错误的共同父类。
-
-    dispatch 执行工具时捕获 AgentError，也就能捕获下面两种子类错误，
-    将它们转成 Error: 开头的工具结果，交给调用工具的 Agent 处理。
-    """
-
-    pass
-
-
-class StepLimitExceeded(AgentError):
-    """请求模型达到 max_turns 次，仍没有最终回答时，由 run 抛出。
-
-    用它结束本次任务，避免 Agent 一直请求模型、调用工具而停不下来。
-    """
-
-    pass
-
-
-class ModelOutputError(AgentError):
-    """模型回复不能作为有效结果使用时抛出。
-
-    run 检查没有工具请求时的回答是否为空；API 适配器检查回复是否
-    被截断或被拒绝。检查失败就抛出这个错误，不把无效回复当作完成。
-    """
-
-    pass
 
 
 @dataclass(frozen=True)
@@ -93,25 +63,85 @@ class Agent:
         self.specialists = dict(specialists or {})
 
     def dispatch(self, call: dict) -> str:
-        """TODO 1：按模型给的名字查工具，检查参数，再执行工具保存的函数。
-
-        dispatch 在这里就是“执行工具”；找到工具后，调用它的 handler。
-        handler 保存的是函数，handler(...) 才会执行它。约定的错误返回 Error: 文本。
-        """
-        raise NotImplementedError("TODO 1: dispatch")
+        """只执行当前实例注册的工具；参数错误作为 tool 消息返回。"""
+        name = call["function"]["name"]
+        tool = self.tools.get(name)
+        if tool is None:
+            return f"Error: unknown tool: {name}"
+        try:
+            args = json.loads(call["function"]["arguments"])
+            # 本课所有参数均为必填字符串，拒绝多参、缺参和非字符串。
+            if not isinstance(args, dict) or set(args) != set(tool.parameters["properties"]):
+                raise ValueError("arguments must match tool parameters")
+            if any(not isinstance(value, str) for value in args.values()):
+                raise ValueError("arguments must be strings")
+            return tool.handler(**args)
+        except (ValueError, TypeError, OSError, AgentError) as exc:
+            return f"Error: {exc}"
 
     def run(self, prompt: str) -> str:
-        """TODO 2：补全 Agent loop；每轮请求模型一次，再判断继续还是结束。"""
-        # 先在循环外新建本次任务的 messages，再补全下面每一轮的处理。
+        """一次 run 是一次新任务；messages 只属于这次函数调用。"""
+        messages = [
+            {"role": "system", "content": self.system},
+            {"role": "user", "content": prompt},
+        ]
         for _ in range(self.max_turns):
-            # 有工具请求：执行并保存结果，继续下一轮。
-            # 没有工具请求：返回有效回答；空回答则报错。
-            raise NotImplementedError("TODO 2: run")
-        # 轮数用完仍没返回时，抛出 StepLimitExceeded。
+            answer = self.model.complete(messages, [tool.schema() for tool in self.tools.values()])
+            messages.append(answer)
+            calls = answer.get("tool_calls") or []
+            if not calls:
+                text = answer.get("content")
+                if not isinstance(text, str) or not text.strip():
+                    raise ModelOutputError("empty final answer")
+                return text
+            for call in calls:
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call["id"],
+                        "content": self.dispatch(call),
+                    }
+                )
+        raise StepLimitExceeded(f"stopped after {self.max_turns} model calls without final answer")
 
     def spawn_subagent(self, agent_type: str, description: str) -> str:
-        """TODO 3：取专家配置，创建新 Agent，只传任务，返回有长度上限的回答。"""
-        raise NotImplementedError("TODO 3: spawn_subagent")
+        """作业：创建子助手，让它完成 description，再把回答交回主助手。"""
+        if agent_type not in self.specialists:
+            raise ValueError(f"unknown specialist: {agent_type}")
+        spec = self.specialists[agent_type]
+        # 子助手只使用自己的工具；不给 task，避免它继续创建下一层助手。
+        child_tools = {  # noqa: F841 — TODO 1 创建 child 时使用
+            name: tool for name, tool in spec.tools.items() if name != "task"
+        }
+
+        # TODO 1：用 Agent(...) 创建 child。共用 self.model，使用 spec.system、
+        # child_tools 和 self.max_turns；不传主助手的 specialists。
+        child = None
+        if child is None:
+            raise NotImplementedError("TODO 1: 创建子助手")
+
+        # TODO 2：调用 child 的 run，只传 description，把返回的回答存进 summary。
+        summary = None
+        if summary is None:
+            raise NotImplementedError("TODO 2: 运行子助手")
+
+        # 回答长度限制已提供，不属于作业。
+        if len(summary) > MAX_SUMMARY_CHARS:
+            return summary[:MAX_SUMMARY_CHARS] + "\n[summary truncated]"
+        return summary
+
+
+# 以下是已提供的运行检查，无需修改。
+class AgentError(RuntimeError):
+    """运行错误的共同类型，便于执行工具时统一处理。"""
+
+
+class StepLimitExceeded(AgentError):
+    """请求模型的次数已达上限，仍未得到最终回答。"""
+
+
+class ModelOutputError(AgentError):
+    """模型回答为空、被截断或被拒绝。"""
 
 
 class OpenAIModel:

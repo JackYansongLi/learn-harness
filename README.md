@@ -18,17 +18,17 @@ flowchart TD
 
 这些任务都通过 `agent.py` 中 `run()` 的循环执行：每轮请求模型，有工具请求就执行并继续，没有工具请求就检查回答并返回。Main Agent 请求 task 时，会等另一个 Agent 跑完自己的循环，再带着结果继续。
 
-## 先完成三个方法，再运行调查
+## 补上子助手调用，再运行调查
 
 教学代码只有三个文件：
 
 | 文件 | 你需要看什么 |
 | --- | --- |
-| `agent.py` | 循环 run、执行工具 dispatch、调用子助手 spawn_subagent；工具说明和 API 请求已提供 |
+| `agent.py` | 在 spawn_subagent 中补两处代码；循环、工具调用和 API 请求已提供 |
 | `main.py` | 三位专家的配置、程序入口和进度条 |
 | `tools.py` | PDF、源码、数据目录与 PyTorch 工具，已写好 |
 
-按[教程](docs/tutorial.md)理解循环，再根据同一页中的作业要求补全 `agent.py` 中执行工具的 `dispatch`、负责循环的 `run`、调用子助手的 `spawn_subagent`。公开仓库暂不提供答案，初始代码会在 TODO 处停止。
+按[教程](docs/tutorial.md)看主助手怎样进入子助手的循环，再补全 `spawn_subagent` 中的两处代码：创建子助手，调用它的 `run()`。公开仓库暂不提供答案，初始代码会在 TODO 处停止。
 
 安装 [uv](https://docs.astral.sh/uv/getting-started/installation/) 后，在 macOS / Linux 终端准备作业环境：
 
@@ -39,7 +39,7 @@ uv sync --locked
 uv run pytest -q
 ```
 
-测试使用预设模型回复，不需要密钥或 PyTorch。三个方法还没写完时，相关测试失败是正常的；写完后重新运行，检查工具调用、消息回传和 Subagent 的独立消息是否正确。
+测试使用预设模型回复，不需要密钥或 PyTorch。两处代码还没写完时，子助手调用相关的测试会失败；写完后重新运行，检查它是否用自己的工作说明和工具完成任务，再把回答交回主助手。
 
 ## 以 AlexNet 论文为例，运行调查助手
 

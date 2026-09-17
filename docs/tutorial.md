@@ -2,7 +2,7 @@
 
 前面我们说过，Agent 开发就是在 loop 里加条件：每次收到模型回复，都要判断接下来执行什么、要不要继续。
 
-这节课沿用这条循环，让它能调用另一个 Agent。负责分配任务的叫 Main Agent，被调用来完成一项任务的叫 Subagent。两者都执行同一个 `run()` 方法里的循环。
+这节课已经提供普通 Agent 的循环和工具调用。你只补上两处代码：创建另一个 Agent，调用它的 `run()`。负责分配任务的叫 Main Agent，被调用来完成一项任务的叫 Subagent。两者都执行同一个 `run()` 方法里的循环。
 
 我们要写的是论文调查助手。你给它一份论文 PDF，它读论文、检查你的电脑，再告诉你还需要准备什么。测试时使用仓库中的 AlexNet 论文，程序也要能接收其他论文的 PDF。
 
@@ -15,7 +15,7 @@
 - 有工具请求：执行工具，保存结果，再请求模型。
 - 没有工具请求：检查回答是否为空；有答案就返回，空回答就报错。
 
-这两个判断决定了循环继续还是结束。完整顺序如下，你要把它写进 `run()`：
+这两个判断决定了循环继续还是结束。`run()` 已经写好，先顺着下面的步骤读一遍：
 
 ```text
 新建本次任务的消息列表
@@ -90,7 +90,7 @@ def read_selected_pages(pages):
 
 ```python
 handler = read_selected_pages  # 没有括号：存下这个函数，暂时不执行
-result = handler("1")         # 加上括号：执行存下的函数，读取第 1 页
+result = handler("1")  # 加上括号：执行存下的函数，读取第 1 页
 ```
 
 **handler 在这里就是一个保存函数的名字。** 它保存的不是文字 `"read_selected_pages"`，也不是读出来的结果，而是稍后要调用的函数。本项目的每条工具记录都有一个 handler 字段，用它保存该工具实际要执行的函数。
@@ -111,7 +111,7 @@ result = handler("1")         # 加上括号：执行存下的函数，读取第
   → 把读取结果交回 run，继续下一轮
 ```
 
-**这几步合在一起，就是你要写的 `dispatch()`，可以把它读成“执行工具”。** dispatch 这个方法负责查找、检查和调用；handler 这个字段保存被调用的函数。两者都只是这份代码里的名字，不需要另外学习一种 Agent 技术。
+**这几步合在一起，就是已经提供的 `dispatch()`，可以把它读成“执行工具”。** dispatch 这个方法负责查找、检查和调用；handler 这个字段保存被调用的函数。两者都只是这份代码里的名字，不需要另外学习一种 Agent 技术。
 
 ```mermaid
 flowchart LR
@@ -198,7 +198,7 @@ parent.run 保存结果，进入下一轮
 
 ## 5. 两条循环分别保存消息
 
-除了工具不同，parent 和 child 的消息也要分开。你要在每次进入 `run()` 时新建 `messages`，而不是把消息一直存在同一个公共列表里。
+除了工具不同，parent 和 child 的消息也要分开。已提供的 `run()` 会在每次调用时新建 `messages`，而不是把消息一直存在同一个公共列表里。
 
 parent 的第一条任务是用户的调查要求，child 的第一条任务是 Main Agent 给它的 description。两边各自追加模型回复和工具结果，child 结束时只返回回答文本。
 
@@ -219,7 +219,7 @@ flowchart LR
 
 ## 6. 把这条循环用在论文调查里
 
-循环和工具调用写好后，就可以安排具体任务。本课设置了三位助手，每一位都使用同一个 `run()`，区别在于工作说明和工具：
+有了这条循环，就可以给不同助手安排任务。本课设置了三位助手，每一位都使用同一个 `run()`，区别在于工作说明和工具：
 
 | 助手 | 要查什么 | 已提供的工具 |
 | --- | --- | --- |
@@ -237,67 +237,38 @@ flowchart LR
 
 这份实验是预先写好的，不会随着 PDF 内容自动生成。换其他论文时，可以继续读论文、查环境；如果还要运行那篇论文的模型，需要在 `tools.py` 添加对应实验，再在 `main.py` 分配工具。
 
-## 7. 你需要补全的三个位置
+## 7. 作业：接通主助手与子助手
 
-打开 `agent.py`，按下面的分工完成三个 TODO：
+打开 `agent.py` 的 `spawn_subagent()`。主助手请求 task 时，程序会进入这里。选助手、准备工具和限制回答长度已经写好，你只需要替换两处 `None`。
 
-| 方法 | 在循环中负责什么 |
-| --- | --- |
-| run | 循环请求模型；判断继续执行工具、返回答案还是报错 |
-| dispatch | 执行本轮的一次工具请求，把结果交回循环 |
-| spawn_subagent | 在执行 task 时创建 child，等待 child 的循环返回 |
+### 第一步：创建 child
 
-只补全 `Agent` 的这三个方法，可以添加 import 和小型辅助函数。同文件中的 API 请求、工具数据结构，以及 `main.py`、`tools.py` 和测试都已提供，不需要修改。
+此时 `spec` 是选中的助手配置，`spec.system` 是它的工作说明，`child_tools` 是它能使用的工具。用 `Agent(...)` 创建一个新对象，存入 child：
 
-### dispatch：按名字找到工具并执行
+- model 使用 `self.model`，两位助手共用同一个 API 客户端。
+- system 使用 `spec.system`，工具使用 `child_tools`。
+- max_turns 使用 `self.max_turns`。
+- 不传 specialists；本课只让主助手分配任务。
 
-模型返回的读取请求如下：
+这里的 self 仍是主助手。创建 child 只是准备好了另一个助手，还没有请求模型。
 
-```python
-call = {
-    "id": "read_1",
-    "type": "function",
-    "function": {"name": "read_paper", "arguments": '{"pages":"1"}'},
-}
+### 第二步：让 child 开始工作
+
+调用 child 的 `run()`，把本次任务 description 传进去，将返回值存入 summary。这次调用才会进入子助手的循环：它请求模型、使用自己的工具，直到给出回答。
+
+不要把主助手的消息传进去。`run()` 会为 child 新建消息列表，先放入它的工作说明和 description。
+
+child 返回后，下面已经写好的代码会把 summary 交回主助手。主助手的 `run()` 将它保存为 task 的结果，再请求模型，继续调查。
+
+```text
+你补的第一处：创建 child
+你补的第二处：调用 child.run，得到 summary
+已提供的代码：返回 summary → 保存为 task 结果 → 主助手继续循环
 ```
 
-这里的 `function.name` 是工具名，`function.arguments` 是用 JSON 写成的参数文本。先把参数文本转成字典，用工具名查 `self.tools`；检查参数后，调用查到的工具记录中保存的函数，也就是它的 handler。
+写完后，对照第 4 节的调用顺序，指出主助手在哪一行等待、子助手从哪里开始运行、回答又回到了哪里。能解释这三个位置，才算理解了这两处代码。
 
-`parameters.properties` 列出了这个工具允许的参数名。解析出的参数必须是字典，名字不多不少、恰好与它对应，值都必须是字符串。没有参数的工具传 `{}`。未知工具或参数不符合要求时，返回 `Error:` 开头的文本；不要绕过工具表去调用其他助手的函数。
-
-### run：补全循环中的判断
-
-循环前新建 messages，放入 system 和 user 两条消息，内容分别是 `self.system` 和本次 prompt。再将每个工具的 `schema()` 结果组成 schemas 列表。
-
-每轮调用 `self.model.complete(messages, schemas)`，先把返回的 assistant 消息存进 messages。有 `tool_calls` 时逐个执行 dispatch，为每个结果追加一条 tool 消息。例如，上面的读取请求对应：
-
-```python
-{"role": "tool", "tool_call_id": "read_1", "content": "刚刚读取的结果"}
-```
-
-`tool_call_id` 必须对应请求的 id。保存完本轮所有结果，再进入下一轮。没有工具请求时，返回非空回答；回答为空就抛 `ModelOutputError`。循环用完 max_turns 次还没返回，则抛 `StepLimitExceeded`。
-
-### spawn_subagent：运行另一个助手的循环
-
-1. 按 agent_type 从 `self.specialists` 找配置，未知类型抛 `ValueError`。
-2. 复制这位助手的工具表并移除 task，不修改原表。
-3. 用本文件的 Agent 创建 child，复用 model，使用这位助手的 system、复制后的工具表和相同的 max_turns，不传 specialists。
-4. 只把 description 传给 `child.run()`，等待它返回回答。
-5. 回答超过 `MAX_SUMMARY_CHARS` 时截断，追加 `\n[summary truncated]`。
-
-每次调用都创建新 child。它的 run 会新建消息列表，不能沿用上一次任务的消息，也不能复制 parent 的消息。
-
-### 错误怎样处理
-
-| 情况 | 处理方式 |
-| --- | --- |
-| 工具名、JSON 或参数有误 | dispatch 返回 `Error:` 开头的文本 |
-| 工具抛出 ValueError、TypeError、OSError、AgentError | dispatch 转成 `Error:` 文本 |
-| 方法未写完或其他程序错误 | 正常抛出，不用 `except Exception` 吞掉 |
-| 没有工具请求，回答为空 | run 抛 ModelOutputError |
-| 循环次数用完，仍无最终回答 | run 抛 StepLimitExceeded |
-
-这些异常类和常量都在 `agent.py` 中，注释说明了各自的用途。
+`dispatch()`、`run()`、错误处理和 API 请求都已提供，不属于本次作业，不需要修改。
 
 ## 8. 检查作业，再运行真实调查
 
@@ -308,7 +279,7 @@ uv sync --locked
 uv run pytest -q
 ```
 
-测试不调用真实模型，因此不需要密钥。它会检查：工具结果是否进入下一轮、最终回答能否结束循环、轮数用完是否报错，以及 child 的消息有没有混进 parent。
+测试不调用真实模型，因此不需要密钥。与作业有关的测试会检查：是否创建了新的 child、是否使用选中助手的工作说明和工具、是否只传入 description，以及 child 的回答是否交回主助手。其他测试用于检查已提供的代码，你不需要修改。
 
 测试通过后，配置密钥，再让助手实际调查 AlexNet 论文：
 

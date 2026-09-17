@@ -24,7 +24,7 @@ dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
 testpaths = ["tests"]
 addopts = "-ra"
 pythonpath = ["."]
-markers = ["exercise: 需要完成 Agent 三个作业方法的测试"]
+markers = ["exercise: 需要完成子助手创建与调用的测试"]
 
 [tool.ruff]
 line-length = 100

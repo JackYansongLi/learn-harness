@@ -9,7 +9,7 @@ def pytest_addoption(parser):
 
 def pytest_collection_modifyitems(items):
     for item in items:
-        if "agent_class" in item.fixturenames:
+        if "recording" in item.fixturenames:
             item.add_marker(pytest.mark.exercise)
 
 

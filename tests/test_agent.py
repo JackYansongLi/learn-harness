@@ -149,6 +149,7 @@ def test_separate_runs_have_fresh_context(agent_class):
     ]
 
 
+@pytest.mark.exercise
 def test_child_isolation_and_summary_only(agent_class):
     model = ScriptedModel(
         answer(None, task("paper", "read this paper")),
@@ -175,6 +176,7 @@ def test_child_isolation_and_summary_only(agent_class):
     assert "CHILD_RAW_EVIDENCE" in json.dumps(model.requests[2])
 
 
+@pytest.mark.exercise
 def test_experts_use_their_own_knowledge_and_tools(agent_class):
     model = ScriptedModel(answer("paper result"), answer("environment result"))
     agent = parent(agent_class, model)
@@ -189,6 +191,7 @@ def test_experts_use_their_own_knowledge_and_tools(agent_class):
     assert "paper result" not in json.dumps(second)
 
 
+@pytest.mark.exercise
 def test_repeated_expert_calls_start_fresh(agent_class):
     model = ScriptedModel(answer("first result"), answer("second result"))
     agent = parent(agent_class, model)
@@ -199,6 +202,7 @@ def test_repeated_expert_calls_start_fresh(agent_class):
     assert "first result" not in json.dumps(model.requests[1])
 
 
+@pytest.mark.exercise
 def test_child_rejects_fabricated_task_even_if_registry_has_task(agent_class):
     model = ScriptedModel(answer(None, task("paper", "again")), answer("stop"))
     agent = parent(agent_class, model)
@@ -209,6 +213,7 @@ def test_child_rejects_fabricated_task_even_if_registry_has_task(agent_class):
     assert all(t["function"]["name"] != "task" for t in model.requests[0]["tools"])
 
 
+@pytest.mark.exercise
 def test_child_cannot_use_another_experts_tool(agent_class):
     model = ScriptedModel(answer(None, call("inspect")), answer("cannot inspect"))
     agent = parent(agent_class, model)
@@ -223,6 +228,7 @@ def test_unknown_expert(agent_class):
     assert agent.dispatch(task("unknown", "go")).startswith("Error:")
 
 
+@pytest.mark.exercise
 def test_child_budget_failure_is_reported_to_parent(agent_class):
     model = ScriptedModel(
         answer(None, task("paper", "loop")),
@@ -235,6 +241,7 @@ def test_child_budget_failure_is_reported_to_parent(agent_class):
     assert len(model.requests) == 4
 
 
+@pytest.mark.exercise
 def test_summary_is_bounded(agent_class):
     agent = parent(agent_class, ScriptedModel(answer("x" * 3000)))
     assert agent.spawn_subagent("paper", "go") == "x" * MAX_SUMMARY_CHARS + "\n[summary truncated]"

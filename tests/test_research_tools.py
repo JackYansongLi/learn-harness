@@ -193,6 +193,7 @@ def test_explicit_experiment_and_code(agent_class, pdf, tmp_path):
     assert "my implementation" in parent.specialists["paper"].tools["read_code"].handler()
 
 
+@pytest.mark.exercise
 def test_three_experts_complete_generic_pdf_workflow(agent_class, pdf, monkeypatch):
     import main as app
     from tests.test_agent import task
