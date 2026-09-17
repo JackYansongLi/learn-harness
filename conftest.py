@@ -9,11 +9,18 @@ def pytest_addoption(parser):
 
 def pytest_collection_modifyitems(items):
     for item in items:
-        if "recording" in item.fixturenames:
+        if item.get_closest_marker("exercise1") or item.get_closest_marker("exercise2"):
             item.add_marker(pytest.mark.exercise)
 
 
 @pytest.fixture
-def agent_class(request):
-    module = "solution.agent" if request.config.getoption("--impl") == "solution" else "agent"
-    return importlib.import_module(module).Agent
+def agent_class():
+    from agent import Agent
+
+    return Agent
+
+
+@pytest.fixture
+def main_agent_class(request):
+    module = "solution.agent" if request.config.getoption("--impl") == "solution" else "main"
+    return importlib.import_module(module).MainAgent

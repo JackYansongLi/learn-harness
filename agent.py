@@ -1,4 +1,4 @@
-"""作业：在 spawn_subagent 中创建子助手，并调用它的 run。其余代码已提供。"""
+"""已提供的普通 Agent：请求模型、执行工具，再把结果交回模型。无需修改。"""
 
 import json
 import os
@@ -7,8 +7,6 @@ from typing import Callable, cast
 
 from openai import OpenAI, omit
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
-
-MAX_SUMMARY_CHARS = 2400
 
 
 @dataclass(frozen=True)
@@ -29,12 +27,6 @@ class Tool:
         }
 
 
-@dataclass(frozen=True)
-class Specialist:
-    system: str
-    tools: dict[str, Tool]
-
-
 def string_args(*names: str) -> dict:
     return {
         "type": "object",
@@ -51,7 +43,6 @@ class Agent:
         system: str,
         tools: dict[str, Tool],
         *,
-        specialists: dict[str, Specialist] | None = None,
         max_turns: int = 8,
     ):
         if max_turns < 1:
@@ -60,7 +51,6 @@ class Agent:
         self.system = system
         self.tools = dict(tools)
         self.max_turns = max_turns
-        self.specialists = dict(specialists or {})
 
     def dispatch(self, call: dict) -> str:
         """只执行当前实例注册的工具；参数错误作为 tool 消息返回。"""
@@ -103,32 +93,6 @@ class Agent:
                     }
                 )
         raise StepLimitExceeded(f"stopped after {self.max_turns} model calls without final answer")
-
-    def spawn_subagent(self, agent_type: str, description: str) -> str:
-        """作业：创建子助手，让它完成 description，再把回答交回主助手。"""
-        if agent_type not in self.specialists:
-            raise ValueError(f"unknown specialist: {agent_type}")
-        spec = self.specialists[agent_type]
-        # 子助手只使用自己的工具；不给 task，避免它继续创建下一层助手。
-        child_tools = {  # noqa: F841 — TODO 1 创建 child 时使用
-            name: tool for name, tool in spec.tools.items() if name != "task"
-        }
-
-        # TODO 1：用 Agent(...) 创建 child。共用 self.model，使用 spec.system、
-        # child_tools 和 self.max_turns；不传主助手的 specialists。
-        child = None
-        if child is None:
-            raise NotImplementedError("TODO 1: 创建子助手")
-
-        # TODO 2：调用 child 的 run，只传 description，把返回的回答存进 summary。
-        summary = None
-        if summary is None:
-            raise NotImplementedError("TODO 2: 运行子助手")
-
-        # 回答长度限制已提供，不属于作业。
-        if len(summary) > MAX_SUMMARY_CHARS:
-            return summary[:MAX_SUMMARY_CHARS] + "\n[summary truncated]"
-        return summary
 
 
 # 以下是已提供的运行检查，无需修改。

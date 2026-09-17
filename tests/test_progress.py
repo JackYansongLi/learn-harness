@@ -83,3 +83,16 @@ def test_empty_answer_does_not_complete_a_stage():
     with ui:
         ui.complete(messages("论文助手"), [])
     assert not ui.finished
+
+
+def test_first_exercise_has_three_stages():
+    ui = ProgressModel(
+        ScriptedModel(*[answer("done") for _ in range(3)]), disabled=True, exercise=1
+    )
+    with ui:
+        for who in ("论文助手", "环境助手", "Main Agent"):
+            ui.complete(messages(who), [])
+    assert ui.progress.tasks[0].total == 3
+    assert ui.progress.tasks[0].completed == 3
+    assert ui.finished == ui.stages
+    assert ui.progress.tasks[0].description == "调查结束"

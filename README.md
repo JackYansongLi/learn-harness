@@ -2,33 +2,33 @@
 
 你打算借助 Agent 复现一篇 AI 论文，却不知道该先让它做什么。要安排后面的代码和实验，先得查清论文用了什么模型、多少数据，以及自己的电脑能运行哪些计算。本课就从这项调查开始：输入论文 PDF，让 Agent 读论文、查环境，最后给出复现建议。
 
-这项任务分给三个 Subagent：论文助手查原文，环境助手检查本机，难度助手比较两边的条件。难度助手需要前两项的结果，因此由 Main Agent 先收集论文和环境信息，再交给它判断，最后整理报告。
+作业分两题：
+
+1. **改主循环，调用两个已写好的 Subagent。** 论文助手读 PDF，环境助手检查本机。你执行模型提出的任务请求，把两位的回答交回主循环。自动化测试检查它们是否实际运行。
+2. **自己实现复现难度 Subagent。** 主助手把前两份结果交给它；你写工作说明，让它用数据目录检查、训练步数计算工具判断下一步。
 
 ```mermaid
 flowchart TD
-    PDF[你提供的论文 PDF] --> M[Main Agent]
-    M -->|查方法和训练要求| P[论文助手]
-    M -->|检查本机| E[环境助手]
-    P -->|论文摘要与页码| M
-    E -->|环境实测结果| M
-    M -->|把两份结果交给它| D[复现难度助手]
-    D -->|缺什么、下一步做什么| M
-    M --> R[复现调查报告]
+    M[第一题：修改主循环] --> P[已提供：论文助手]
+    M --> E[已提供：环境助手]
+    P -->|论文证据| M
+    E -->|本机实测| M
+    M -->|第二题：传入两份结果| D[你实现的难度助手]
+    D -->|复现建议| M
+    M --> R[调查报告]
 ```
 
-这些任务都通过 `agent.py` 中 `run()` 的循环执行：每轮请求模型，有工具请求就执行并继续，没有工具请求就检查回答并返回。Main Agent 请求 task 时，会等另一个 Agent 跑完自己的循环，再带着结果继续。
-
-## 补上子助手调用，再运行调查
+## 从第一题开始
 
 教学代码只有三个文件：
 
-| 文件 | 你需要看什么 |
+| 文件 | 用途 |
 | --- | --- |
-| `agent.py` | 在 spawn_subagent 中补两处代码；循环、工具调用和 API 请求已提供 |
-| `main.py` | 三位专家的配置、程序入口和进度条 |
-| `tools.py` | PDF、源码、数据目录与 PyTorch 工具，已写好 |
+| `main.py` | 两题都在这里：修改 MainAgent.run，实现 run_difficulty |
+| `agent.py` | 已提供：子助手使用的 Agent 循环、工具调用和 API 请求 |
+| `tools.py` | 已提供：PDF、源码、数据目录与 PyTorch 工具 |
 
-按[教程](docs/tutorial.md)看主助手怎样进入子助手的循环，再补全 `spawn_subagent` 中的两处代码：创建子助手，调用它的 `run()`。公开仓库暂不提供答案，初始代码会在 TODO 处停止。
+按[教程](docs/tutorial.md)先完成第一题，再做第二题。第一题可以独立运行，不需要先写难度助手。
 
 安装 [uv](https://docs.astral.sh/uv/getting-started/installation/) 后，在 macOS / Linux 终端准备作业环境：
 
@@ -36,10 +36,17 @@ flowchart TD
 git clone https://github.com/JackYansongLi/learn-harness.git
 cd learn-harness
 uv sync --locked
-uv run pytest -q
+uv run pytest -m exercise1 -q
 ```
 
-测试使用预设模型回复，不需要密钥或 PyTorch。两处代码还没写完时，子助手调用相关的测试会失败；写完后重新运行，检查它是否用自己的工作说明和工具完成任务，再把回答交回主助手。
+测试使用预设模型回复，不需要密钥或 PyTorch。第一题未完成时，相关测试会失败。完成后，测试会检查两个助手是否真正使用了工具、返回的回答是否进入主循环。
+
+第二题写完后，用下面的命令检查新增助手和完整流程：
+
+```bash
+uv run pytest -m exercise2 -q
+uv run pytest -q
+```
 
 ## 以 AlexNet 论文为例，运行调查助手
 
@@ -49,10 +56,10 @@ uv run pytest -q
 uv sync --locked --extra ml
 cp .env.example .env
 # 打开 .env，填入 DEEPSEEK_API_KEY
-uv run --extra ml python main.py --trace
+uv run --extra ml python main.py --exercise 1 --trace
 ```
 
-不传 PDF 路径时，程序使用仓库里的 AlexNet 论文并启用配套实验。终端会打印任务、工具请求和结果；进度条显示当前助手、等待状态和已用时间，按论文、环境、难度、最终报告四个阶段更新。
+第一题用 `--exercise 1`，第二题改成 `--exercise 2`。不传 PDF 路径时，程序使用仓库里的 AlexNet 论文并启用配套实验。终端会打印任务、工具请求和结果；进度条显示当前助手、等待状态和已用时间。第一题有论文、环境、最终报告三个阶段，第二题加上难度判断，共四个阶段。
 
 结束后打开 `output/report.md`。报告中的环境结论来自本机工具：它用随机输入完成一次前向计算、反向传播和参数更新。这能检查模型是否跑得通；论文准确率仍需真实数据上的训练和评估。
 
@@ -96,10 +103,12 @@ uv run --extra ml python main.py \
 
 ## 用真实调用验收
 
-报告生成后，再运行在线验收，检查三位助手是否实际调用了各自的工具：
+报告生成后，按题号运行在线验收，检查参与调查的助手是否实际使用了各自的工具：
 
 ```bash
-uv run --extra ml python -m tests.smoke
+uv run --extra ml python -m tests.smoke --exercise 1
+# 第二题完成后
+uv run --extra ml python -m tests.smoke --exercise 2
 ```
 
 验收代码都在 `tests/`，你无需修改。验收也接受 `--device cuda`、`--device mps`、`--device cpu`，记录保存在 `output/smoke.json`。它检查执行过程；报告里的论文结论仍需回到原文核对。

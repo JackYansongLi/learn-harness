@@ -4,25 +4,31 @@ from copy import deepcopy
 import pytest
 
 import main as app
-from tests.helpers import ScriptedModel, answer, call
+from tests.helpers import ScriptedModel, answer, call, task
 from tests.smoke import RecordingModel, verify
-from tests.test_agent import task
 from tests.test_research_tools import make_pdf
 from tools import select_device
 
 
 @pytest.fixture(
     params=[
-        ("auto", True, False),
-        ("auto", False, True),
-        ("auto", False, False),
-        ("cuda", True, False),
-        ("mps", False, True),
-        ("cpu", False, True),
+        pytest.param(
+            (exercise, requested, cuda, mps),
+            marks=pytest.mark.exercise1 if exercise == 1 else pytest.mark.exercise2,
+        )
+        for exercise in (1, 2)
+        for requested, cuda, mps in [
+            ("auto", True, False),
+            ("auto", False, True),
+            ("auto", False, False),
+            ("cuda", True, False),
+            ("mps", False, True),
+            ("cpu", False, True),
+        ]
     ]
 )
-def recording(agent_class, tmp_path, monkeypatch, request):
-    requested, cuda, mps = request.param
+def recording(main_agent_class, tmp_path, monkeypatch, request):
+    exercise, requested, cuda, mps = request.param
     selected = select_device(requested, cuda, mps)
     pdf = make_pdf(tmp_path / "test.pdf", ["Test paper for workflow validation"])
 
@@ -71,20 +77,30 @@ def recording(agent_class, tmp_path, monkeypatch, request):
                 call("run_model_check", id="step"),
             ),
             answer("environment summary"),
-            answer(None, task("difficulty", "paper summary and environment summary", "d")),
-            answer(
-                None,
-                call("inspect_dataset", id="dataset"),
-                call("training_workload", '{"samples":"5","epochs":"3","batch_size":"2"}', "work"),
+            *(
+                [
+                    answer(None, task("difficulty", "paper summary and environment summary", "d")),
+                    answer(
+                        None,
+                        call("inspect_dataset", id="dataset"),
+                        call(
+                            "training_workload",
+                            '{"samples":"5","epochs":"3","batch_size":"2"}',
+                            "work",
+                        ),
+                    ),
+                    answer("difficulty summary"),
+                ]
+                if exercise == 2
+                else []
             ),
-            answer("difficulty summary"),
             answer("final report"),
         )
     )
-    result = app.build_parent(agent_class, model, pdf, experiment="alexnet", device=requested).run(
-        "test investigation"
-    )
-    return model.requests, result, requested
+    result = app.build_parent(
+        main_agent_class, model, pdf, experiment="alexnet", device=requested, exercise=exercise
+    ).run("test investigation")
+    return model.requests, result, requested, exercise
 
 
 def test_online_verifier_accepts_complete_evidence(recording):
@@ -104,7 +120,9 @@ def test_online_verifier_accepts_complete_evidence(recording):
     ],
 )
 def test_online_verifier_rejects_false_success(recording, mutation):
-    requests, result, requested = deepcopy(recording)
+    requests, result, requested, exercise = deepcopy(recording)
+    if mutation == "early_difficulty" and exercise == 1:
+        pytest.skip("第一题没有难度助手")
     for request in requests:
         for message in request["messages"]:
             if mutation == "skipped_tool":
@@ -129,4 +147,4 @@ def test_online_verifier_rejects_false_success(recording, mutation):
         # 一开始就生成难度任务，description 不可能包含尚未返回的工具结果。
         history[2]["tool_calls"].append(history[5]["tool_calls"].pop())
     with pytest.raises(AssertionError):
-        verify(requests, result, requested)
+        verify(requests, result, requested, exercise)

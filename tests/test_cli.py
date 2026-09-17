@@ -5,13 +5,13 @@ from types import SimpleNamespace
 
 import pytest
 
-import agent
 import main
 from tools import ALEXNET_PDF
 
 
+@pytest.mark.parametrize("exercise", [1, 2])
 @pytest.mark.parametrize("custom_pdf", [False, True])
-def test_cli_selects_paper_and_experiment(tmp_path, monkeypatch, custom_pdf):
+def test_cli_selects_paper_and_experiment(tmp_path, monkeypatch, custom_pdf, exercise):
     chosen = {}
     api = SimpleNamespace(client=nullcontext(), receipts=[])
     monkeypatch.setattr(main.OpenAIModel, "from_env", lambda: api)
@@ -22,13 +22,22 @@ def test_cli_selects_paper_and_experiment(tmp_path, monkeypatch, custom_pdf):
 
     monkeypatch.setattr(main, "build_parent", build)
     output = tmp_path / "report.md"
-    args = ["--output", str(output), "--device", "cpu", "--no-progress"]
+    args = [
+        "--output",
+        str(output),
+        "--device",
+        "cpu",
+        "--no-progress",
+        "--exercise",
+        str(exercise),
+    ]
     if custom_pdf:
         pdf = tmp_path / "different.pdf"
         pdf.write_bytes(b"%PDF-test")
         args += ["--pdf", str(pdf)]
     main.main(args)
-    assert chosen["cls"] is agent.Agent
+    assert chosen["cls"] is main.MainAgent
+    assert chosen["exercise"] == exercise
     assert chosen["device"] == "cpu"
     assert chosen["pdf"] == (pdf if custom_pdf else ALEXNET_PDF)
     assert chosen["experiment"] == (None if custom_pdf else "alexnet")

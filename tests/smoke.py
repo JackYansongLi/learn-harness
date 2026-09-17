@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from openai import APIError
 
 from agent import AgentError, OpenAIModel
-from main import MAIN_SYSTEM, QUESTION, ProgressModel, build_parent
+from main import MAIN_SYSTEM, QUESTION, MainAgent, ProgressModel, build_parent
 from tools import ALEXNET_PDF, DEVICE_CHOICES, select_device
 
 
@@ -24,16 +24,17 @@ class RecordingModel:
         return self.model.complete(messages, tools)
 
 
-def verify(requests, result, requested_device="auto"):
-    parent = [r for r in requests if r["messages"][0]["content"] == MAIN_SYSTEM]
-    children = [r for r in requests if r["messages"][0]["content"] != MAIN_SYSTEM]
+def verify(requests, result, requested_device="auto", exercise=2):
+    parent = [r for r in requests if r["messages"][0]["content"].startswith(MAIN_SYSTEM)]
+    children = [r for r in requests if not r["messages"][0]["content"].startswith(MAIN_SYSTEM)]
     assert parent and children and result.strip(), "没有完整的 Main Agent、Subagent 调用"
     assert all({t["function"]["name"] for t in r["tools"]} == {"task"} for r in parent)
     assert all("task" not in {t["function"]["name"] for t in r["tools"]} for r in children)
     history = parent[-1]["messages"]
     tasks = [c for m in history for c in m.get("tool_calls", [])]
     args = [json.loads(c["function"]["arguments"]) for c in tasks]
-    assert {a["agent_type"] for a in args} == {"paper", "environment", "difficulty"}
+    expected_agents = {"paper", "environment"} | ({"difficulty"} if exercise == 2 else set())
+    assert {a["agent_type"] for a in args} == expected_agents
     starts = [r["messages"][1]["content"] for r in children if len(r["messages"]) == 2]
     assert starts == [a["description"] for a in args], "Subagent没有从独立任务开始"
     results = {m["tool_call_id"]: m["content"] for m in history if m["role"] == "tool"}
@@ -58,14 +59,15 @@ def verify(requests, result, requested_device="auto"):
                 evidence[message["tool_call_id"]] = message["content"]
     assert not set(calls) & set(results), "Subagent的工具记录进入了Main Agent消息"
     names = {c["function"]["name"] for c in calls.values()}
-    assert {
+    required_tools = {
         "read_paper",
         "inspect_model",
         "inspect_environment",
         "run_model_check",
-        "inspect_dataset",
-        "training_workload",
-    } <= names, "有实际检查被跳过"
+    }
+    if exercise == 2:
+        required_tools |= {"inspect_dataset", "training_workload"}
+    assert required_tools <= names, "有实际检查被跳过"
 
     def outputs(name):
         try:
@@ -94,26 +96,36 @@ def verify(requests, result, requested_device="auto"):
 
 def main():
     parser = argparse.ArgumentParser(description="AlexNet 在线验收，会消耗 DeepSeek 额度")
+    parser.add_argument("--exercise", type=int, choices=[1, 2], default=1)
     parser.add_argument("--impl", choices=["exercise", "solution"], default="exercise")
     parser.add_argument("--device", choices=DEVICE_CHOICES, default="auto")
     args = parser.parse_args()
     if args.impl == "solution":
-        from solution.agent import Agent
+        from solution.agent import MainAgent as implementation
     else:
-        from agent import Agent
+        implementation = MainAgent
     load_dotenv(override=False)
     try:
         api = OpenAIModel.from_env()
-        with api.client, ProgressModel(api, trace=True) as progress:
+        with api.client, ProgressModel(api, trace=True, exercise=args.exercise) as progress:
             recorder = RecordingModel(progress)
             result = build_parent(
-                Agent, recorder, ALEXNET_PDF, experiment="alexnet", device=args.device
+                implementation,
+                recorder,
+                ALEXNET_PDF,
+                experiment="alexnet",
+                device=args.device,
+                exercise=args.exercise,
             ).run(
                 QUESTION + "\n本次为课堂验收，请在任务说明中明确以下实际调用要求："
                 "paper 用 read_paper 和 inspect_model 核对论文及实现，查出数据量、epoch、batch。"
                 "environment 用 inspect_environment 和 run_model_check 实测，均无需参数。"
-                "收到两份回答后，把证据传给 difficulty，并明确要求它实际调用 inspect_dataset"
-                "和 training_workload，不得心算后声称工具已返回。工具失败就如实报告。"
+                + (
+                    "收到两份回答后，把证据传给 difficulty，并要求它调用 inspect_dataset 和 "
+                    "training_workload。工具失败就如实报告。"
+                    if args.exercise == 2
+                    else ""
+                )
             )
     except APIError as exc:
         parser.exit(1, f"API 失败：{type(exc).__name__}，检查密钥、余额、网络和模型名。\n")
@@ -127,12 +139,13 @@ def main():
         parser.exit(1, f"验收未通过：{exc}\n")
     check_error = None
     try:
-        verify(recorder.requests, result, args.device)
+        verify(recorder.requests, result, args.device, args.exercise)
     except AssertionError as exc:
         check_error = str(exc) or "验收条件未满足"
     report = {
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "implementation": args.impl,
+        "exercise": args.exercise,
         "requested_model": api.model,
         "requested_device": args.device,
         "checks": "failed" if check_error else "passed",

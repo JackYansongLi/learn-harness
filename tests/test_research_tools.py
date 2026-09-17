@@ -169,34 +169,35 @@ def test_probe_bad_output(monkeypatch):
         rt.run_probe("step")
 
 
-def test_generic_registry_has_no_alexnet_experiment(agent_class, pdf):
-    parent = build_parent(agent_class, None, pdf)
+def test_generic_registry_has_no_alexnet_experiment(main_agent_class, pdf):
+    parent = build_parent(main_agent_class, None, pdf)
     assert set(parent.tools) == {"task"}
-    assert set(parent.specialists["paper"].tools) == {"read_paper", "search_paper"}
-    assert set(parent.specialists["environment"].tools) == {"inspect_environment"}
-    assert set(parent.specialists["difficulty"].tools) == {"inspect_dataset", "training_workload"}
-    read = parent.specialists["paper"].tools["read_paper"].handler(pages="1")
+    assert set(parent.subagents["paper"].tools) == {"read_paper", "search_paper"}
+    assert set(parent.subagents["environment"].tools) == {"inspect_environment"}
+    assert set(parent.subagents) == {"paper", "environment"}
+    assert parent.difficulty_tools is None
+    read = parent.subagents["paper"].tools["read_paper"].handler(pages="1")
     assert "different research" in read
 
 
-def test_explicit_experiment_and_code(agent_class, pdf, tmp_path):
+def test_explicit_experiment_and_code(main_agent_class, pdf, tmp_path):
     code = tmp_path / "custom.py"
     code.write_text("my implementation")
-    parent = build_parent(agent_class, None, pdf, experiment="alexnet", code=code)
-    assert set(parent.specialists["paper"].tools) == {
+    parent = build_parent(main_agent_class, None, pdf, experiment="alexnet", code=code)
+    assert set(parent.subagents["paper"].tools) == {
         "read_paper",
         "search_paper",
         "read_code",
         "inspect_model",
     }
-    assert "run_model_check" in parent.specialists["environment"].tools
-    assert "my implementation" in parent.specialists["paper"].tools["read_code"].handler()
+    assert "run_model_check" in parent.subagents["environment"].tools
+    assert "my implementation" in parent.subagents["paper"].tools["read_code"].handler()
 
 
-@pytest.mark.exercise
-def test_three_experts_complete_generic_pdf_workflow(agent_class, pdf, monkeypatch):
+@pytest.mark.exercise2
+def test_three_experts_complete_generic_pdf_workflow(main_agent_class, pdf, monkeypatch):
     import main as app
-    from tests.test_agent import task
+    from tests.helpers import task
 
     monkeypatch.setattr(
         app, "run_probe", lambda action, device: '{"status":"ok","mps_available":true}'
@@ -217,7 +218,7 @@ def test_three_experts_complete_generic_pdf_workflow(agent_class, pdf, monkeypat
         answer("Need implementation and dataset."),
         answer("A paper investigation with known limitations."),
     )
-    result = build_parent(agent_class, model, pdf).run("investigate my PDF")
+    result = build_parent(main_agent_class, model, pdf, exercise=2).run("investigate my PDF")
     assert result == "A paper investigation with known limitations."
     assert len(model.requests) == 9
     assert model.requests[6]["messages"][1]["content"] == handoff
@@ -239,7 +240,7 @@ def test_bundled_alexnet_case():
 
 
 @pytest.mark.parametrize("device", ["auto", "cuda", "mps", "cpu"])
-def test_device_bound_to_tools(agent_class, pdf, monkeypatch, device):
+def test_device_bound_to_tools(main_agent_class, pdf, monkeypatch, device):
     import main as app
 
     calls = []
@@ -249,8 +250,8 @@ def test_device_bound_to_tools(agent_class, pdf, monkeypatch, device):
         return "measured"
 
     monkeypatch.setattr(app, "run_probe", probe)
-    parent = build_parent(agent_class, None, pdf, experiment="alexnet", device=device)
-    env = parent.specialists["environment"].tools
+    parent = build_parent(main_agent_class, None, pdf, experiment="alexnet", device=device)
+    env = parent.subagents["environment"].tools
     assert env["run_model_check"].parameters["properties"] == {}
     env["inspect_environment"].handler()
     env["run_model_check"].handler()

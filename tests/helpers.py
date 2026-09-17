@@ -22,3 +22,9 @@ class ScriptedModel:
     def complete(self, messages, tools):
         self.requests.append(deepcopy({"messages": messages, "tools": tools}))
         return deepcopy(next(self.answers))
+
+
+def task(kind, description, id="parent_task"):
+    import json
+
+    return call("task", json.dumps({"agent_type": kind, "description": description}), id)

@@ -24,7 +24,11 @@ dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
 testpaths = ["tests"]
 addopts = "-ra"
 pythonpath = ["."]
-markers = ["exercise: 需要完成子助手创建与调用的测试"]
+markers = [
+    "exercise: 需要完成作业的测试",
+    "exercise1: 第一题，主循环调用论文和环境助手",
+    "exercise2: 第二题，复现难度助手及三助手协作",
+]
 
 [tool.ruff]
 line-length = 100
