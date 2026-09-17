@@ -1,12 +1,13 @@
 """两题分别验收。用预设模型回复检查 Python 调用，不依赖模型碰巧答对。"""
 
 import json
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 
 from agent import Agent, StepLimitExceeded, Tool, string_args
-from main import MainAgent, build_parent
+from main import KNOWLEDGE, MainAgent, build_parent
 from tests.helpers import ScriptedModel, answer, call, task
 from tools import ALEXNET_PDF
 
@@ -151,6 +152,25 @@ def difficulty_tools(events, token):
             workload,
         ),
     }
+
+
+@pytest.mark.exercise2
+def test_new_subagent_uses_work_instructions_from_file(main_agent_class, monkeypatch):
+    instructions = f"复现难度 Subagent\n本次工作说明：{uuid4().hex}\n"
+    instructions_path = (KNOWLEDGE / "difficulty.md").resolve()
+    original_read_text = Path.read_text
+
+    def read_text(path, *args, **kwargs):
+        if path.resolve() == instructions_path:
+            return instructions
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    model = ScriptedModel(answer("assessment"))
+    parent = main_agent_class(model, {}, difficulty_tools=difficulty_tools([], "token"))
+
+    assert parent.run_difficulty("assess the provided evidence") == "assessment"
+    assert model.requests[0]["messages"][0] == {"role": "system", "content": instructions}
 
 
 @pytest.mark.exercise2

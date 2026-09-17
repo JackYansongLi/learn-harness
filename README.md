@@ -5,7 +5,7 @@
 作业分两题：
 
 1. **改主循环，调用两个已写好的 Subagent。** 论文 Subagent 读 PDF，环境 Subagent 检查本机。你写的代码执行模型提出的任务请求，把两个 Subagent 的回答交回主循环。自动化测试检查调用和消息传递是否正确。
-2. **自己实现复现难度 Subagent。** Main Agent 把前两份结果交给它；你写工作说明，让它用数据目录检查、训练步数计算工具判断下一步。
+2. **自己实现复现难度 Subagent。** 读取 `knowledge/difficulty.md` 中已提供的工作说明，创建 Subagent，再把 Main Agent 传来的任务交给它运行。它根据前两份结果，使用数据目录检查和训练步数计算工具判断下一步。
 
 ```mermaid
 flowchart TD

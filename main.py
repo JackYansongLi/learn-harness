@@ -94,7 +94,8 @@ class MainAgent(Agent):
         return summary[:2400] + "\n[summary truncated]" if len(summary) > 2400 else summary
 
     def run_difficulty(self, description):
-        """第二题：编写复现难度 Subagent 的工作说明，用它自己的工具完成 description。"""
+        """第二题：读取工作说明，创建复现难度 Subagent，执行 description。"""
+        # 从 KNOWLEDGE / "difficulty.md" 读取 UTF-8 文本，作为 system。
         # 可用工具已放在 self.difficulty_tools：inspect_dataset、training_workload。
         # 用 Agent 创建独立的 Subagent，共用 self.model，使用 self.max_turns。
         # 由它的 run 执行 description，返回回答；不要直接返回一段写死的建议。

@@ -1,37 +1,33 @@
 # AI Agent 开发实操课: Subagent
 
-你打算借助 Agent 复现一篇论文，却不知道该先让它做什么：模型和训练设置要从论文哪里查？本机能运行哪些实验？还需要准备哪些数据？先查清这些问题，才能安排后面的代码和实验。
+你打算借助 Agent 复现一篇论文，却不知道该先让它做什么：模型和训练设置要从论文哪里查？机器的配置是否可以支撑实验？准备哪些数据？如何配置环境先查清这些问题，才能安排后面的代码和实验。
 
-本课用这个场景练习 Subagent 开发。**你要补全的是 Agent 程序：在主循环中调用 Subagent，再自己创建一个带有工具的 Subagent。** Main Agent 负责分配任务和汇总回答；被它调用、负责其中一项任务的 Agent，在这里叫 Subagent。
+本课用这个场景练习 Subagent 开发。**你要补全的是 Agent 程序：在主循环中调用 Subagent，再自己创建一个带有工具的 Subagent。** Main Agent 负责分配任务和汇总回答；三个 Subagent 各司其职，负责衡量难度，检查环境配置，阅读论文。
 
-课堂用仓库中的[AlexNet 论文 PDF](../examples/alexnet/paper.pdf)测试你写的程序。
+你可以用仓库中的[AlexNet 论文 PDF](../examples/alexnet/paper.pdf)测试你写的程序。
 
-> **AlexNet 是一种用于图像分类的深层卷积神经网络。** Alex Krizhevsky、Ilya Sutskever 和 Geoffrey Hinton 在 2012 年的论文 [《ImageNet Classification with Deep Convolutional Neural Networks》](https://papers.nips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf)中介绍了它。同年，团队以该模型为基础的参赛系统赢得 ImageNet 大规模视觉识别挑战赛（ILSVRC 2012）的图像分类冠军，展示了用 GPU 训练深层网络处理大规模图像分类的能力。本课读取这篇论文，用 PyTorch 的图像模型库 torchvision 提供的 AlexNet 实现做单步实验。[这个实现与 2012 年论文存在差别](https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.alexnet.html)，运行成功不等于复现了原论文。
+> **补充知识：AlexNet** AlexNet 是一种用于图像分类的深层卷积神经网络。Alex Krizhevsky、Ilya Sutskever 和 Geoffrey Hinton 在 2012 年的论文 [《ImageNet Classification with Deep Convolutional Neural Networks》](https://papers.nips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf)中介绍了它。同年，团队以该模型为基础的参赛系统赢得 ImageNet 大规模视觉识别挑战赛（ILSVRC 2012）的图像分类冠军，展示了用 GPU 训练深层网络处理大规模图像分类的能力。这篇文章宣告 Deep Learning 这个技术路线的成功，引爆了之后的大模型时代。我想世界历史会以这个时间点作为一个重要节点。
 
-作业分成两题，都在 `main.py` 中。第一题先调用已经写好的 Subagent，第二题再创建新的 Subagent：
+这次的实操作业分成两题，都在 `main.py` 中。第一题先调用已经写好的 Subagent，第二题再创建新的 Subagent：
 
 | 题目                          | 已经提供                                           | 你要实现                                                                                           |
 | ----------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | 第一题：调用两个 Subagent     | 论文 Subagent、环境 Subagent，以及它们的工具和循环 | 补全 `MainAgent.run()`：执行模型提出的任务请求，把两个 Subagent 的回答交回主循环                   |
-| 第二题：增加复现难度 Subagent | 数据目录检查、训练步数计算工具                     | 实现 `MainAgent.run_difficulty()`：写工作说明，创建 Subagent，让它根据前两份结果调用工具并给出建议 |
+| 第二题：增加复现难度 Subagent | `knowledge/difficulty.md`、数据目录检查和训练步数计算工具 | 实现 `MainAgent.run_difficulty()`：读取工作说明，创建 Subagent，运行任务并返回回答 |
 
 补全后的程序应通过工具完成下面三项调查。第一题完成前两项，第二题增加第三项：
 
 1. **论文 Subagent 查论文要求。** 读取 PDF，查清 AlexNet 的模型结构、数据量和训练设置，返回结论及原文页码。
-2. **环境 Subagent 检查本机。** 调用工具检查 PyTorch 和可用设备，并运行已提供的 AlexNet 单步实验：用一批随机数据完成前向计算、反向传播和一次参数更新。
+2. **环境 Subagent 检查极其环境配置。** 调用工具检查 PyTorch 和可用设备，并运行已提供的 AlexNet 单步实验：用一批随机数据完成前向计算、反向传播和一次参数更新。
 3. **复现难度 Subagent 判断还缺什么。** 接收前两份回答，检查指定的数据目录、按已查到的训练参数计算步数，再说明哪些条件已检查、哪些仍未核实。
 
 Main Agent 根据这些返回结果生成报告，已提供的入口代码会将报告保存到 `output/report.md`。**作业验收看的是你修改的代码和实际调用过程，只有一份报告不能证明完成了作业。** 你还需要运行测试，确认主循环确实调用了 Subagent，并把它们的回答交回模型。
 
-本课的实验只检查一次训练步骤能否执行。完整训练和核对论文准确率，是后续复现工作的内容。程序也能接收其他论文的 PDF，但配套的模型实验目前只有 AlexNet。
-
 前面的课讲过，Agent 开发就是在 loop 里加条件：有工具请求就执行，把结果交回模型，再进入下一轮；没有工具请求就返回答案。这次要接上的，是循环中的 Subagent 调用。Main Agent 分配任务后等待，Subagent 运行自己的循环并返回回答，Main Agent 再带着这份回答继续。
-
-## 课前讨论
 
 > **什么时候需要多个 Agent，什么时候一个就够了？**
 >
-> 可以先问：**另一个 Agent 带来了原先那次回答没有用到的证据吗？** 重读同一段文字可能发现问题，但多了一次讨论并不等于多了一份证据。测试结果、渲染截图和外部查询结果，则提供了可以核对的材料。
+> 可以先问：**另一个 Agent 带来了原先那次回答没有用到的证据吗？** 重读同一段文字可能发现问题，但多了一次讨论并不等于多了一份证据。测试结果、渲染截图和外部查询结果，只有类似这样路径获取的文本才提供了可以核对的材料。
 >
 > **多 Agent 协作方式的信息增量对比**
 >
@@ -49,7 +45,7 @@ Main Agent 根据这些返回结果生成报告，已提供的入口代码会将
 
 > **Question**: 一群 Agent 一起写代码然后抽一个最好的 v.s. 一半的 Agent 写代码 + 一半的 Agent 写测试 & 给代码纠错，哪个效果好？
 
-> **这种分工叫作什么？**
+> **多 Agent 有哪些分工模式？**
 >
 > 本课采用的是**管理者模式**：Main Agent 决定把任务交给谁，Subagent 完成后把结果交回来，下一步仍由 Main Agent 决定。另一种是**去中心化交接**：一个 Agent 把后续工作交给另一个 Agent，由后者接着处理，不必每一步都回到同一个管理者。[OpenAI 的 Agent 开发指南](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf#page=17)区分了这两种方式。
 >
@@ -73,7 +69,7 @@ Main Agent 根据这些返回结果生成报告，已提供的入口代码会将
 > **本项目直接读取本地文件，使用的是内置资料和外部输入这两类资源。** 按用途可以对照表中的“系统内置资源”和“外部挂载资源”，但本课没有另做虚拟文件系统或挂载操作：
 >
 > - **外部资源**：你通过 `--pdf`、`--code` 指定的论文和源码文件，由论文 Subagent 读取；通过 `--dataset` 指定的数据目录，由复现难度 Subagent 检查。工具只读取这些文件或检查目录，不修改它们。
-> - **内置资源**：仓库自带 AlexNet 论文 PDF，以及 `knowledge/paper.md`、`knowledge/environment.md` 两份工作说明。这些文件会一直保存在仓库中，程序运行时只读取。本课按分工提供资料：论文给论文 Subagent，两份工作说明分别加载给对应的 Subagent，并非表中“所有 Agent 都能访问”的完整实现。
+> - **内置资源**：仓库自带 AlexNet 论文 PDF，以及 `knowledge/` 中的 `paper.md`、`environment.md`、`difficulty.md` 三份工作说明。这些文件会一直保存在仓库中，程序运行时只读取。本课按分工提供资料：论文给论文 Subagent，每份工作说明加载给对应的 Subagent，并非表中“所有 Agent 都能访问”的完整实现。
 >
 > 本课没有为每个 Agent 建立专属文件目录，也没有让它们通过共享文件交换结果。Subagent 的回答通过函数返回值交给 Main Agent；`output/report.md` 则由 `main.py` 在调查结束后统一保存。各自的 `messages` 是内存中的对话记录，不是文件工作区。Subagent 按顺序运行，也没有写文件工具，因此这里不需要锁或 worktree 来协调它们的文件修改。
 
@@ -101,10 +97,10 @@ Main Agent 根据这些返回结果生成报告，已提供的入口代码会将
 
 打开 `main.py`，找到 `build_parent()`。这里准备了两个 Subagent：
 
-| Subagent                   | 工作说明                   | 能调用的工具                                                     |
-| -------------------------- | -------------------------- | ---------------------------------------------------------------- |
+| Subagent                   | 工作说明                   | 能调用的工具                                                                             |
+| -------------------------- | -------------------------- | ---------------------------------------------------------------------------------------- |
 | paper，论文 Subagent       | `knowledge/paper.md`       | 读取 PDF、查找关键词；可读取指定源码，启用 AlexNet 实验时还可读取 torchvision 的模型实现 |
-| environment，环境 Subagent | `knowledge/environment.md` | 检查 PyTorch 和可用设备；选择 AlexNet 实验时还能运行模型单步检查 |
+| environment，环境 Subagent | `knowledge/environment.md` | 检查 PyTorch 和可用设备；选择 AlexNet 实验时还能运行模型单步检查                         |
 
 每个 Subagent 都是一个 `Agent` 对象。创建时，把模型调用对象、工作说明和工具交给它；调用它的 `run(任务)`，它就进入 `agent.py` 中已经写好的循环：请求模型，有工具请求就执行，再把结果交回模型。
 
@@ -207,29 +203,24 @@ uv run --extra ml python main.py --exercise 1 --trace
 
 打开 `MainAgent.run_difficulty(description)`，根据函数中的说明，用你的实现替换末尾的 `raise NotImplementedError(...)`。Main Agent 的工作说明已要求模型把前两份回答的关键证据写进 `description`；Python 代码只负责传递这个参数，不会自动补齐遗漏的内容。
 
-你需要自己写这个 Subagent 的工作说明、创建它，并运行它的任务。可以参考 `build_parent()` 中前两个 Subagent 的创建方式，以及 `agent.py` 中 `Agent` 的参数。
+工作说明已放在 `knowledge/difficulty.md`。你要像前两个 Subagent 一样，从文件读取工作说明，再创建 Subagent、运行任务并返回回答。可以参考 `build_parent()` 中读取 `knowledge/paper.md` 和 `knowledge/environment.md` 的代码。
 
-### 写清楚它要做什么
+### 读取工作说明
 
-工作说明第一行用“复现难度 Subagent”，供进度条识别。后面用你自己的话说明：
+先打开 `knowledge/difficulty.md`。第一行“复现难度 Subagent”供进度条识别，后面规定它怎样使用论文和环境证据、何时调用两个工具，以及怎样给出建议。
 
-- 根据 description 中的论文和环境证据判断，不凭记忆补写论文设置。
-- 调用 `inspect_dataset` 检查数据目录中 `train` 和 `val` 各自包含的类别子目录。这个工具不验证图片、标签或数据集完整性；未提供目录时，应说明没有检查数据目录。
-- 论文中的样本数、训练轮数、每批样本数齐全时，调用 `training_workload` 计算训练步数；缺少数字时就说明缺什么。这项计算不要求本机已经有训练数据。
-- 区分“模型单步跑通”“完成论文规模的训练”“达到论文指标”，给出依据和下一步。
-
-检查和计算函数都已提供。你的工作是让这个 Subagent 知道什么时候使用它们、怎样根据结果回答，不需要再写一套目录扫描或计算代码。
+`main.py` 中的 `KNOWLEDGE` 已指向这个目录。在 `run_difficulty()` 中，用 `read_text(encoding="utf-8")` 读取 `KNOWLEDGE / "difficulty.md"`，将文件内容作为 `system`。提示词只保留在 Markdown 文件中，函数负责读取和使用它。
 
 ### 创建并运行这个 Subagent
 
 `self.difficulty_tools` 已经准备好这两个工具。用 `Agent` 创建 Subagent 时：
 
-| 参数      | 使用什么                                  |
-| --------- | ----------------------------------------- |
+| 参数      | 使用什么                                     |
+| --------- | -------------------------------------------- |
 | model     | `self.model`，共用 Main Agent 的模型调用对象 |
-| system    | 你写的工作说明                            |
-| tools     | `self.difficulty_tools`，只给它这两个工具 |
-| max_turns | `self.max_turns`，限制它自己的循环次数    |
+| system    | 从 `knowledge/difficulty.md` 读取的文本       |
+| tools     | `self.difficulty_tools`，只给它这两个工具    |
+| max_turns | `self.max_turns`，限制它自己的循环次数       |
 
 然后调用它的 `run(description)`，返回它的回答。不要直接返回写死的复现建议，也不要把 Main Agent 的 task 工具交给它。
 
@@ -263,9 +254,9 @@ uv run --extra ml python main.py --exercise 2 --trace
 
 上面的 `main.py` 命令没有传 `--dataset`，调用目录检查工具时应返回“未提供目录”。如果有数据，在这条命令后加 `--dataset /实际的数据目录`；数据目录下应分别有 `train/类别名/` 和 `val/类别名/` 两组子目录。
 
-第二题测试既会单独调用你的复现难度 Subagent，也会检查三个 Subagent 一起工作的过程。它会核对工具是否实际执行、参数是否传对、结果是否交回模型，以及新的任务是否从独立的消息列表开始。协作测试需要第一题也已完成。
+第二题测试既会单独调用你的复现难度 Subagent，也会检查三个 Subagent 一起工作的过程。它会检查发给模型的工作说明是否来自 `knowledge/difficulty.md`，再核对工具是否执行、参数是否传对、结果是否交回模型，以及新的任务是否从独立的消息列表开始。协作测试需要第一题也已完成。
 
-预设回复能检查调用过程，不能证明你写的工作说明会让真实模型始终作出正确判断。运行后打开 `output/report.md`，对照论文、工具结果和传给复现难度 Subagent 的任务，检查结论是否有依据。
+预设回复能检查调用过程，不能保证真实模型始终按工作说明作出正确判断。运行后打开 `output/report.md`，对照论文、工具结果和传给复现难度 Subagent 的任务，检查结论是否有依据。
 
 ## 4. 最后验收与提交
 
