@@ -8,13 +8,15 @@
 
 ## 1. 谁读论文，谁检查环境？
 
-论文助手负责从 PDF 中找出模型结构、数据量和训练设置，说明原论文是怎么做的，并标出这些信息在哪一页。
+我们采用三个 Subagent 完成这个任务，我们称之为论文助手 P，环境助手 E 和难度助手 D。
 
-知道原论文的做法后，还要检查自己的电脑。环境助手会检测 PyTorch 版本和可用设备；如果提供了模型实验，还会实际运行一次，记录成功或失败。
+论文助手负责从 PDF 中找出模型结构、数据量和训练设置，说明原论文的实验是怎么做的，并标出这些信息在哪一页。
+
+知道原论文的实验做法后，还要检查自己的电脑的环境是否搭建好了。环境助手会检测 PyTorch 版本和可用设备；如果提供了小规模的 Demo 实验，还会实际运行一次，记录成功或失败。
 
 难度助手收到论文和环境的结果后，再判断接下来该做什么：是先准备数据、修改模型实现，还是已经可以开始小规模实验。它需要用前两位查到的结果说明理由。
 
-这三个助手的工作不同，程序也分别给它们配置工作说明和工具。为了把它们的结果传给下一位，我们再设置一个 Main Agent，负责分配任务、传递结果和整理报告。被 Main Agent 调用的助手，在这里称为 Subagent。
+这三个助手的工作不同，程序也分别给它们配置工作说明和工具。为了把它们的结果传给下一位，我们再设置一个 Main Agent，负责分配任务、传递结果和整理报告。
 
 Main Agent 先安排读论文和查环境，拿到两份结果后，再交给难度助手。读论文和查环境谁先做都可以，下图选取其中一种顺序：
 
@@ -121,10 +123,10 @@ summary = child.run(description)
 
 执行 `child.run(description)` 后，child 就按上一节的循环请求模型、读取 PDF，直到返回回答。这段回答依次经过 `spawn_subagent()` 和 `dispatch()`，最后成为 Main Agent 收到的 task 结果。
 
-| 工具 | handler 执行什么 | 返回什么 |
-| --- | --- | --- |
-| read_paper | 读取指定 PDF 的页码 | 提取出的文字和来源信息 |
-| task | 创建 child，调用 child.run | child 的回答 |
+| 工具       | handler 执行什么           | 返回什么               |
+| ---------- | -------------------------- | ---------------------- |
+| read_paper | 读取指定 PDF 的页码        | 提取出的文字和来源信息 |
+| task       | 创建 child，调用 child.run | child 的回答           |
 
 两种工具都能交给同一个 `dispatch()` 处理，因为对它来说，工作都是找到 handler、传入参数、收回结果。task 额外做的事都在 `spawn_subagent()` 里面。
 
@@ -134,11 +136,11 @@ summary = child.run(description)
 
 上一节中，parent 和 child 都调用了 `run()` 和 `dispatch()`。它们确实使用同一个 Agent 类的方法，但调用时的对象不同，self 也就不同：
 
-| 调用 | self 指向谁 | 使用的工具或配置 |
-| --- | --- | --- |
-| parent.run / parent.dispatch | parent | task |
-| parent.spawn_subagent | parent | 从自己的 specialists 中查专家配置 |
-| child.run / child.dispatch | child | 当前专家的工具 |
+| 调用                         | self 指向谁 | 使用的工具或配置                  |
+| ---------------------------- | ----------- | --------------------------------- |
+| parent.run / parent.dispatch | parent      | task                              |
+| parent.spawn_subagent        | parent      | 从自己的 specialists 中查专家配置 |
+| child.run / child.dispatch   | child       | 当前专家的工具                    |
 
 `parent.spawn_subagent` 已经绑定 parent，保存到 handler 后不会改变。因此 Main Agent 的 dispatch 调用这个 handler，进入方法后 self 仍然是 parent。
 
@@ -211,11 +213,11 @@ flowchart TD
 
 这些设备对应不同的运行方式。学生可以使用 CUDA、MPS 或 CPU，教师用 Mac 只是其中一个例子：
 
-| 设备 | 用途 | 检查方法 |
-| --- | --- | --- |
-| CUDA | 使用 NVIDIA GPU | torch.cuda.is_available()；需要硬件、驱动和 PyTorch 支持 |
-| MPS | 使用支持 MPS 的 Mac GPU | torch.backends.mps.is_available() |
-| CPU | 使用 CPU，不需要 GPU | 在 CPU 上执行相同实验 |
+| 设备 | 用途                    | 检查方法                                                 |
+| ---- | ----------------------- | -------------------------------------------------------- |
+| CUDA | 使用 NVIDIA GPU         | torch.cuda.is_available()；需要硬件、驱动和 PyTorch 支持 |
+| MPS  | 使用支持 MPS 的 Mac GPU | torch.backends.mps.is_available()                        |
+| CPU  | 使用 CPU，不需要 GPU    | 在 CPU 上执行相同实验                                    |
 
 MPS 是 PyTorch 在 Mac 上使用 GPU 的后端，安装和检测方法见 [MPS 文档](https://docs.pytorch.org/docs/stable/notes/mps.html)。CUDA 安装包和驱动则要与本机匹配，见 [PyTorch 安装页](https://pytorch.org/get-started/locally/)。无论选哪种设备，检测可用之后还需要实际运行模型，才能确认这份实现能否执行。
 
