@@ -46,7 +46,7 @@ class Tool:
     name: str
     description: str
     parameters: dict
-    handler: Callable[..., str]
+    handler: Callable[..., str]  # 保存执行函数；调用 handler(...) 时才真正执行工具
 
     def schema(self) -> dict:
         return {
@@ -93,7 +93,11 @@ class Agent:
         self.specialists = dict(specialists or {})
 
     def dispatch(self, call: dict) -> str:
-        """TODO 1：检查工具名和 JSON 参数，调用 handler；约定的错误返回 Error: 文本。"""
+        """TODO 1：按模型给的名字查工具，检查参数，再执行工具保存的函数。
+
+        dispatch 在这里就是“执行工具”；找到工具后，调用它的 handler。
+        handler 保存的是函数，handler(...) 才会执行它。约定的错误返回 Error: 文本。
+        """
         raise NotImplementedError("TODO 1: dispatch")
 
     def run(self, prompt: str) -> str:

@@ -61,20 +61,69 @@ flowchart TD
 
 要让下一轮看到前面读过的内容，需要一个 `messages` 列表。它先保存工作说明和任务，之后再追加模型回复和工具结果。`run()` 每轮把当前列表发给模型，模型才能接着已有结果往下查。
 
-这里还有一步需要你写：模型给出工具名后，怎样找到读取函数？这一步放在 `dispatch()` 中。它从当前 Agent 的 `tools` 字典里查名字，检查参数，再执行对应函数。
+### 先看一次普通函数调用
 
-以读取工具为例，`Tool` 保存了下面这几项：
+读取函数已经在 `tools.py` 里写好。先不考虑模型，程序直接读第 1 页时，写法是：
 
-| 代码里的名字 | 用途 |
-| --- | --- |
-| name | 工具名，例如 read_paper |
-| description | 告诉模型这个工具能做什么 |
-| parameters | 告诉模型需要哪些参数，例如页码 |
-| handler | 实际执行的函数 |
+```python
+from pathlib import Path
+from tools import read_paper
 
-前三项通过 `schema()` 整理成 API 接受的工具说明，发送给模型。`handler` 留在本地，由 `dispatch()` 调用。论文路径在 `main.py` 创建工具时就已确定，所以模型只需传页码。
+pdf = Path("examples/alexnet/paper.pdf")
+result = read_paper(pdf, "1")
+```
 
-这样就能分清两个方法：`run()` 管循环和消息，`dispatch()` 执行循环里的一次工具请求。
+`read_paper` 是函数名，括号里的 pdf 和 "1" 是交给它的文件路径和页码。执行后，result 保存返回的文字及页码信息。所谓“读取工具”，实际做的就是这次函数调用。
+
+模型不会直接执行这行代码。它回复的是工具名 `read_paper` 和页码 "1"，你的程序需要把这两个信息变成上面的函数调用。
+
+### 先存下函数，需要时再调用
+
+文件路径在程序启动时就确定了，模型只需选页码。可以把固定路径写进一个小函数，让它只接收页码：
+
+```python
+def read_selected_pages(pages):
+    return read_paper(pdf, pages)
+```
+
+下面两行看着相似，做的事却不同：
+
+```python
+handler = read_selected_pages  # 没有括号：存下这个函数，暂时不执行
+result = handler("1")         # 加上括号：执行存下的函数，读取第 1 页
+```
+
+**handler 在这里就是一个保存函数的名字。** 它保存的不是文字 `"read_selected_pages"`，也不是读出来的结果，而是稍后要调用的函数。本项目的每条工具记录都有一个 handler 字段，用它保存该工具实际要执行的函数。
+
+`main.py` 里用 `lambda pages: read_paper(pdf, pages)` 写这个小函数，作用与上面的 read_selected_pages 相同。你可以先按上面的两行来理解“存下函数”和“执行函数”。
+
+### 按工具名找到函数并执行
+
+助手可能有多个工具，所以程序用一个字典保存它们：名字是查找入口，对应的记录里存着说明、参数要求和执行函数。例如，`self.tools["read_paper"]` 就是读取工具的记录。这里 self 指当前助手，self.tools 是它自己的工具字典。
+
+收到模型的读取请求后，程序需要做：
+
+```text
+取出模型给的工具名 read_paper
+  → 在当前助手的 tools 中找到这条记录
+  → 检查页码参数是否合法
+  → 调用这条记录的 handler，传入页码
+  → 把读取结果交回 run，继续下一轮
+```
+
+**这几步合在一起，就是你要写的 `dispatch()`，可以把它读成“执行工具”。** dispatch 这个方法负责查找、检查和调用；handler 这个字段保存被调用的函数。两者都只是这份代码里的名字，不需要另外学习一种 Agent 技术。
+
+```mermaid
+flowchart LR
+    A[模型：读第 1 页] --> B[dispatch：找到读取工具，检查参数]
+    B --> C[调用工具的 handler：执行读取函数]
+    C --> D[返回论文文字]
+    D --> E[run 保存结果，继续循环]
+```
+
+工具记录还保存了 name、description、parameters，分别是名称、用途和参数要求。`schema()` 把这三项整理成发给模型的说明。模型靠说明选择工具，本地程序靠 handler 执行函数。
+
+因此，`run()` 负责反复请求模型；每轮需要使用工具时，交给 `dispatch()`；后者找到并调用工具记录中的 `handler`，把结果送回循环。
 
 ## 3. 执行的工具也可以是另一个 Agent
 
@@ -88,7 +137,7 @@ agent_type：paper
 description：读取这篇论文，查清模型结构、数据量和训练设置，注明页码。
 ```
 
-收到这个请求后，Main Agent 仍然走原来的循环：发现有工具请求，调用 `dispatch()`，等待结果。它不需要另外一套循环来处理 task。
+收到这个请求后，Main Agent 仍然走原来的循环：发现有工具请求，交给“执行工具”的 `dispatch()`，等待结果。它不需要另外一套循环来处理 task。
 
 不同之处在于 `dispatch()` 找到的函数：
 
@@ -97,7 +146,7 @@ description：读取这篇论文，查清模型结构、数据量和训练设置
 | read_paper | 读取 PDF | 论文文字 |
 | task | 调用 spawn_subagent，创建另一个 Agent，执行它的 run | 那个 Agent 的回答 |
 
-因此，判断本轮“要执行什么”的地方是工具表。`main.py` 把 task 对应的函数设为 `parent.spawn_subagent`；`dispatch()` 查到 task 后，就调用这个方法。
+`main.py` 已经把 `parent.spawn_subagent` 存进 task 的 handler 字段。因此按名字找到 task 后，执行它保存的函数，就会进入 `parent.spawn_subagent()`，开始创建子助手。
 
 `spawn_subagent()` 根据 `agent_type` 选工作说明和工具，创建 child，再调用 `child.run(description)`。child 随即进入同样的循环：请求模型、判断工具请求、执行工具、继续或返回。
 
@@ -129,7 +178,7 @@ Main Agent 和 child 都是 `Agent` 类创建的对象，所以使用同一份 `
 | parent.spawn_subagent | Main Agent | 查它保存的助手配置，创建 child |
 | child.run、child.dispatch | 当前 child | 这位助手自己的工具表 |
 
-`parent.spawn_subagent` 已经带着 parent 这个对象。即使把这个方法存进 task 的 `handler`，调用它时 self 仍然是 parent。
+`parent.spawn_subagent` 表示“parent 的创建子助手方法”。把它存进 task 的 handler 后，再调用 handler，执行的仍然是 parent 的这个方法，所以 self 仍是 parent。
 
 在这个方法中执行 `child.run(description)`，才进入 child 的循环。child 返回后，程序回到 parent 原先停下的位置，继续用 parent 的消息和工具：
 
@@ -200,7 +249,7 @@ flowchart LR
 
 只补全 `Agent` 的这三个方法，可以添加 import 和小型辅助函数。同文件中的 API 请求、工具数据结构，以及 `main.py`、`tools.py` 和测试都已提供，不需要修改。
 
-### dispatch：执行一次工具请求
+### dispatch：按名字找到工具并执行
 
 模型返回的读取请求如下：
 
@@ -212,9 +261,9 @@ call = {
 }
 ```
 
-用 `function.name` 查当前对象的 `self.tools`，将 `function.arguments` 从 JSON 字符串解析成字典，再把参数传给工具的 `handler`。
+这里的 `function.name` 是工具名，`function.arguments` 是用 JSON 写成的参数文本。先把参数文本转成字典，用工具名查 `self.tools`；检查参数后，调用查到的工具记录中保存的函数，也就是它的 handler。
 
-本课只使用字符串参数：参数必须是字典，键恰好对应 `parameters.properties`，值都是字符串。没有参数的工具传 `{}`。未知工具或参数不符合要求时，返回 `Error:` 开头的文本；不要绕过工具表去调用其他助手的函数。
+`parameters.properties` 列出了这个工具允许的参数名。解析出的参数必须是字典，名字不多不少、恰好与它对应，值都必须是字符串。没有参数的工具传 `{}`。未知工具或参数不符合要求时，返回 `Error:` 开头的文本；不要绕过工具表去调用其他助手的函数。
 
 ### run：补全循环中的判断
 

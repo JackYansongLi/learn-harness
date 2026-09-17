@@ -24,11 +24,11 @@ flowchart TD
 
 | 文件 | 你需要看什么 |
 | --- | --- |
-| `agent.py` | run 中的循环，以及 dispatch、spawn_subagent 两个 TODO；工具说明和 API 请求已提供 |
+| `agent.py` | 循环 run、执行工具 dispatch、调用子助手 spawn_subagent；工具说明和 API 请求已提供 |
 | `main.py` | 三位专家的配置、程序入口和进度条 |
 | `tools.py` | PDF、源码、数据目录与 PyTorch 工具，已写好 |
 
-按[教程](docs/tutorial.md)理解循环，再根据同一页中的作业要求补全 `agent.py` 中的 `dispatch`、`run`、`spawn_subagent`。公开仓库暂不提供答案，初始代码会在 TODO 处停止。
+按[教程](docs/tutorial.md)理解循环，再根据同一页中的作业要求补全 `agent.py` 中执行工具的 `dispatch`、负责循环的 `run`、调用子助手的 `spawn_subagent`。公开仓库暂不提供答案，初始代码会在 TODO 处停止。
 
 安装 [uv](https://docs.astral.sh/uv/getting-started/installation/) 后，在 macOS / Linux 终端准备作业环境：
 
