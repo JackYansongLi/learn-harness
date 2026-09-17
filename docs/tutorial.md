@@ -4,13 +4,13 @@
 
 > **AlexNet 是一种用于图像分类的深层卷积神经网络。** Alex Krizhevsky、Ilya Sutskever 和 Geoffrey Hinton 在 2012 年的论文 [《ImageNet Classification with Deep Convolutional Neural Networks》](https://papers.nips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf)中介绍了它。同年，团队以该模型为基础的参赛系统赢得 ImageNet 大规模视觉识别挑战赛（ILSVRC 2012）的图像分类冠军，展示了用 GPU 训练深层网络处理大规模图像分类的能力。本课读取的是这篇论文，运行的是 torchvision 提供的 AlexNet 模型实现。
 
-仓库已经放好[这篇论文的 PDF](../examples/alexnet/paper.pdf)，课堂直接使用它。两题完成后，程序会把调查报告写入 `output/report.md`，回答三个问题：
+你要让 Agent 阅读仓库中的[AlexNet 论文 PDF](../examples/alexnet/paper.pdf)，检查本机环境，并在调查报告中回答三个问题：
 
 1. **论文怎么做的？** 查清 AlexNet 的模型结构，以及论文采用的数据量和训练设置，注明原文页码。
 2. **本机能运行什么？** 检查 PyTorch 和可用设备，并用 torchvision 的 AlexNet 模型实现运行已提供的单步实验。这个实验用随机输入完成一次前向计算、反向传播和参数更新。
 3. **接下来还缺什么？** 根据前两项结果，检查指定的数据目录、计算训练步数，说明距离按论文设置训练和核对论文指标还需要哪些准备。
 
-本课要交付的是这份调查报告。完整训练 AlexNet 模型、达到论文报告的准确率，是调查之后的工作；单步实验通过，只能说明这一步能在本机执行。程序也能接收其他论文的 PDF，但目前配套的模型实验只有 AlexNet。
+本课要交付的是这份调查报告，程序会将它保存到 `output/report.md`。完整训练 AlexNet 模型、达到论文报告的准确率，是调查之后的工作；单步实验通过，只能说明这一步能在本机执行。程序也能接收其他论文的 PDF，但目前配套的模型实验只有 AlexNet。
 
 为了完成调查，作业分成两题，都在 `main.py` 中：
 
