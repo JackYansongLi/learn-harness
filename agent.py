@@ -10,15 +10,34 @@ from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolPara
 MAX_SUMMARY_CHARS = 2400
 
 
+# 这三个类用来区分错误类型，错误消息的保存和显示沿用 RuntimeError。
+# pass 表示不添加其他行为，这里已经写完，不是需要你补全的作业。
 class AgentError(RuntimeError):
+    """本课运行错误的共同父类。
+
+    dispatch 执行工具时捕获 AgentError，也就能捕获下面两种子类错误，
+    将它们转成 Error: 开头的工具结果，交给调用工具的 Agent 处理。
+    """
+
     pass
 
 
 class StepLimitExceeded(AgentError):
+    """请求模型达到 max_turns 次，仍没有最终回答时，由 run 抛出。
+
+    用它结束本次任务，避免 Agent 一直请求模型、调用工具而停不下来。
+    """
+
     pass
 
 
 class ModelOutputError(AgentError):
+    """模型回复不能作为有效结果使用时抛出。
+
+    run 检查没有工具请求时的回答是否为空；API 适配器检查回复是否
+    被截断或被拒绝。检查失败就抛出这个错误，不把无效回复当作完成。
+    """
+
     pass
 
 
