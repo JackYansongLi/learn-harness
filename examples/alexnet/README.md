@@ -30,7 +30,7 @@ uv run --extra ml python main.py \
 
 模型采用随机初始化，不下载权重。实验不下载 ImageNet，不启动完整训练。
 
-默认自动选择可用设备，也可以加 `--device cuda`、`--device mps` 或 `--device cpu`。教师用 Mac 演示 MPS，学生按自己的设备选择。设备在创建工具时设定，助手调用 `run_model_check()` 时无需再传参数。
+默认自动选择可用设备，也可以加 `--device cuda`、`--device mps` 或 `--device cpu`。我用 Mac 演示 MPS，你按自己的设备选择。设备在创建工具时设定，助手调用 `run_model_check()` 时无需再传参数。
 
 ## 提交报告前核对
 
@@ -40,6 +40,6 @@ uv run --extra ml python main.py \
 - 没提供数据目录时，报告有没有误写成“本机没有数据”？
 - 训练步数来自哪些输入？约数算出的结果有没有写成精确统计？
 
-本目录的 [checked-report.md](checked-report.md) 是教师在 Mac 上运行后，对照 PDF 和工具输出核对的示例，不会作为助手输入。学生报告中的环境与设备应以各自实测为准。自动生成的原始报告和完整调用记录留在本地 `output/`。
+本目录的 [checked-report.md](checked-report.md) 是我在 Mac 上运行后，对照 PDF 和工具输出核对的示例，不会作为助手输入。你写报告时，环境与设备要以自己的实测结果为准。自动生成的原始报告和完整调用记录留在本地 `output/`。
 
 三位专家的通用知识说明在 [knowledge/](../../knowledge/)，不绑定这篇论文。

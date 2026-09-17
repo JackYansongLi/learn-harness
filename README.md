@@ -58,7 +58,7 @@ uv run --extra ml python main.py --trace
 
 ### 实验用哪块设备？
 
-上面的命令默认使用 `--device auto`，按 CUDA、MPS、CPU 的顺序选择可用设备。教师演示用 macOS，学生按自己的电脑选择即可：
+上面的命令默认使用 `--device auto`，按 CUDA、MPS、CPU 的顺序选择可用设备。我用 macOS 演示，你按自己的电脑选择即可：
 
 | 参数 | 用途 |
 | --- | --- |
@@ -102,6 +102,6 @@ uv run --extra ml python main.py \
 uv run --extra ml python -m tests.smoke
 ```
 
-验收代码都在 `tests/`，学生无需修改。验收也接受 `--device cuda`、`--device mps`、`--device cpu`，记录保存在 `output/smoke.json`。它检查执行过程；报告里的论文结论仍需回到原文核对。
+验收代码都在 `tests/`，你无需修改。验收也接受 `--device cuda`、`--device mps`、`--device cpu`，记录保存在 `output/smoke.json`。它检查执行过程；报告里的论文结论仍需回到原文核对。
 
 普通运行和在线验收都会消耗 API 额度。API 使用 `deepseek-flash`，对应 DeepSeek V4.1 Flash，见 [DeepSeek 模型表](https://api-docs.deepseek.com/quick_start/pricing/)。本课关闭 thinking。密钥放在本地 `.env`，生成文件放在 `output/`，两者都不会提交。
