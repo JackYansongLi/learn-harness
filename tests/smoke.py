@@ -36,7 +36,7 @@ def verify(requests, result, requested_device="auto", exercise=2):
     expected_agents = {"paper", "environment"} | ({"difficulty"} if exercise == 2 else set())
     assert {a["agent_type"] for a in args} == expected_agents
     starts = [r["messages"][1]["content"] for r in children if len(r["messages"]) == 2]
-    assert starts == [a["description"] for a in args], "Subagent没有从独立任务开始"
+    assert starts == [a["description"] for a in args], "Subagent 没有从独立任务开始"
     results = {m["tool_call_id"]: m["content"] for m in history if m["role"] == "tool"}
     assert set(results) == {c["id"] for c in tasks}, "task 返回结果不匹配"
     assert not any(v.startswith("Error:") for v in results.values()), "有子任务失败"
@@ -57,7 +57,7 @@ def verify(requests, result, requested_device="auto", exercise=2):
                 calls[c["id"]] = c
             if message["role"] == "tool":
                 evidence[message["tool_call_id"]] = message["content"]
-    assert not set(calls) & set(results), "Subagent的工具记录进入了Main Agent消息"
+    assert not set(calls) & set(results), "Subagent 的工具记录进入了 Main Agent 消息"
     names = {c["function"]["name"] for c in calls.values()}
     required_tools = {
         "read_paper",

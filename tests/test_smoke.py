@@ -122,7 +122,7 @@ def test_online_verifier_accepts_complete_evidence(recording):
 def test_online_verifier_rejects_false_success(recording, mutation):
     requests, result, requested, exercise = deepcopy(recording)
     if mutation == "early_difficulty" and exercise == 1:
-        pytest.skip("第一题没有难度助手")
+        pytest.skip("第一题没有复现难度 Subagent")
     for request in requests:
         for message in request["messages"]:
             if mutation == "skipped_tool":

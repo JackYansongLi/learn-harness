@@ -1,7 +1,7 @@
 [project]
 name = "learn-harness"
 version = "0.1.0"
-description = "用 OpenAI SDK 和 DeepSeek 学习 subagent：教程、作业与测试"
+description = "用 OpenAI SDK 和 DeepSeek 学习 Subagent：教程、作业与测试"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.28,<1",
@@ -26,8 +26,8 @@ addopts = "-ra"
 pythonpath = ["."]
 markers = [
     "exercise: 需要完成作业的测试",
-    "exercise1: 第一题，主循环调用论文和环境助手",
-    "exercise2: 第二题，复现难度助手及三助手协作",
+    "exercise1: 第一题，主循环调用论文 Subagent 和环境 Subagent",
+    "exercise2: 第二题，复现难度 Subagent 及三个 Subagent 协作",
 ]
 
 [tool.ruff]

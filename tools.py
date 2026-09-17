@@ -123,7 +123,7 @@ def run_probe(action: str, device: str = "auto") -> str:
         result = json.loads(run.stdout)
     except json.JSONDecodeError as exc:
         raise AgentError(f"local probe failed (exit {run.returncode})") from exc
-    # MPS 不可用等失败也保留结构化结果，交给助手解释，不能算作通过。
+    # MPS 不可用等失败也保留结构化结果，交给 Agent 解释，不能算作通过。
     result["process_exit_code"] = run.returncode
     return json.dumps(result, ensure_ascii=False)
 

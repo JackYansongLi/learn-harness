@@ -1,6 +1,6 @@
 # AI Agent 开发实操课: Subagent
 
-这节课要完成一个**论文复现调查助手**。你打算借助 Agent 复现论文中的 AlexNet 实验，但还不知道该怎样安排代码和实验。先让助手读论文、检查你的电脑，弄清论文要求什么、本机已经能做什么，再据此列出还需要准备的条件。
+这节课要完成一个**论文复现调查 Agent**。你打算借助 Agent 复现论文中的 AlexNet 实验，但还不知道该怎样安排代码和实验。先让 Agent 读论文、检查你的电脑，弄清论文要求什么、本机已经能做什么，再据此列出还需要准备的条件。
 
 > **AlexNet 是一种用于图像分类的深层卷积神经网络。** Alex Krizhevsky、Ilya Sutskever 和 Geoffrey Hinton 在 2012 年的论文 [《ImageNet Classification with Deep Convolutional Neural Networks》](https://papers.nips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf)中介绍了它。同年，团队以该模型为基础的参赛系统赢得 ImageNet 大规模视觉识别挑战赛（ILSVRC 2012）的图像分类冠军，展示了用 GPU 训练深层网络处理大规模图像分类的能力。本课读取的是这篇论文，运行的是 torchvision 提供的 AlexNet 模型实现。
 
@@ -16,10 +16,10 @@
 
 | 题目 | 已经提供 | 你要实现 |
 | --- | --- | --- |
-| 第一题：调用两个子助手 | 论文助手、环境助手，以及它们的工具和循环 | 补全 `MainAgent.run()`：执行模型提出的任务请求，把两个助手的回答交回主循环 |
-| 第二题：增加难度助手 | 数据目录检查、训练步数计算工具 | 实现 `MainAgent.run_difficulty()`：写工作说明，创建助手，让它根据前两份结果调用工具并给出建议 |
+| 第一题：调用两个 Subagent | 论文 Subagent、环境 Subagent，以及它们的工具和循环 | 补全 `MainAgent.run()`：执行模型提出的任务请求，把两个 Subagent 的回答交回主循环 |
+| 第二题：增加复现难度 Subagent | 数据目录检查、训练步数计算工具 | 实现 `MainAgent.run_difficulty()`：写工作说明，创建 Subagent，让它根据前两份结果调用工具并给出建议 |
 
-前面的课讲过，Agent 开发就是在 loop 里加条件：有工具请求就执行，把结果交回模型，再进入下一轮；没有工具请求就返回答案。这次要接上的，是循环中的子助手调用。Main Agent 分配任务后等待，Subagent 运行自己的循环并返回回答，Main Agent 再带着这份回答继续。
+前面的课讲过，Agent 开发就是在 loop 里加条件：有工具请求就执行，把结果交回模型，再进入下一轮；没有工具请求就返回答案。这次要接上的，是循环中的 Subagent 调用。Main Agent 分配任务后等待，Subagent 运行自己的循环并返回回答，Main Agent 再带着这份回答继续。
 
 > **什么时候需要多个 Agent，什么时候一个就够了？**
 >
@@ -35,17 +35,17 @@
 > | 审核者查看渲染截图，审查前端或 PPT 代码 | 是，视觉反馈 | 显著提升 |
 > | 审核者使用外部工具验证事实 | 是，工具反馈 | 显著提升 |
 >
-> 放到本课里，论文助手要读 PDF 原文，环境助手要实际检查电脑，主助手才能拿到论文要求和本机条件这两份证据。单个 Agent 也可以调用这些工具；拆成子助手，是为了让它们各自完成一项工作、分别保存阅读和检查记录。是否值得拆分，还要看这些分工能否改善结果，以及多出的调用成本。
+> 放到本课里，论文 Subagent 要读 PDF 原文，环境 Subagent 要实际检查电脑，Main Agent 才能拿到论文要求和本机条件这两份证据。单个 Agent 也可以调用这些工具；拆成 Subagent，是为了让它们各自完成一项工作、分别保存阅读和检查记录。是否值得拆分，还要看这些分工能否改善结果，以及多出的调用成本。
 
 > **Question：Subagent 的上下文是否和 Main Agent 共享？**
 >
-> 本课不共享完整对话。这里的上下文，指每次请求模型时发给它的消息。Main Agent 和 Subagent 分别维护自己的 `messages`：主助手把任务写进 `description` 传过去，子助手完成后只返回回答。子助手不会自动看到主助手之前的对话，主助手也不会自动拿到子助手读过的全部原文。
+> 本课不共享完整对话。这里的上下文，指每次请求模型时发给它的消息。Main Agent 和 Subagent 分别维护自己的 `messages`：Main Agent 把任务写进 `description` 传过去，Subagent 完成后只返回回答。Subagent 不会自动看到 Main Agent 之前的对话，Main Agent 也不会自动拿到 Subagent 读过的全部原文。
 >
-> 因此，要让难度助手参考论文和环境结果，主助手就得把这些信息写进任务里。共用 API 客户端不会让消息自动共享；其他系统也可以选择传递完整历史或共用资料，具体取决于代码怎样传数据。
+> 因此，要让复现难度 Subagent 参考论文和环境结果，Main Agent 就得把这些信息写进任务里。共用 API 客户端不会让消息自动共享；其他系统也可以选择传递完整历史或共用资料，具体取决于代码怎样传数据。
 
 > **这种分工叫作什么？**
 >
-> 本课采用的是**管理者模式**：Main Agent 决定把任务交给谁，Subagent 完成后把结果交回来，下一步仍由 Main Agent 决定。另一种是**去中心化交接**：一个 Agent 把后续工作交给另一个 Agent，由后者接着处理，不必每一步都回到同一位管理者。[OpenAI 的 Agent 开发指南](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf#page=17)区分了这两种方式。
+> 本课采用的是**管理者模式**：Main Agent 决定把任务交给谁，Subagent 完成后把结果交回来，下一步仍由 Main Agent 决定。另一种是**去中心化交接**：一个 Agent 把后续工作交给另一个 Agent，由后者接着处理，不必每一步都回到同一个管理者。[OpenAI 的 Agent 开发指南](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf#page=17)区分了这两种方式。
 >
 > 2026 年 7 月，**Graph Engineering** 这个说法受到关注。它讨论的是怎样把执行流程设计成图：方框表示一个工作步骤，箭头表示接下来执行什么、满足什么条件才能继续；同时规定各步骤传递哪些数据。方框里仍然可以运行我们熟悉的 Agent loop。[LangChain 在 7 月 22 日的文章](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph)解释了这个说法，也指出这种做法早已有之。
 >
@@ -53,7 +53,7 @@
 
 > **OpenAI 的 Navier–Stokes（NS）方程研究用了哪种模式？**
 >
-> OpenAI 在 2026 年 9 月 8 日报告，其多智能体系统找到了光滑外力作用下 NS 方程有限时间爆破的证明。这里“爆破”是指数学解在有限时间内出现速度无界增长。
+> OpenAI 在 2026 年 9 月 8 日报告，其多 Agent 系统找到了光滑外力作用下 NS 方程有限时间爆破的证明。这里“爆破”是指数学解在有限时间内出现速度无界增长。
 >
 > 按[官方披露](https://openai.com/index/navier-stokes-solution/)，Agent 被分成多个组，组内可以通信，各组探索不同思路；研究团队再用 Codex 汇总有用的中间结果，交给其他组继续研究。可以把这种做法描述为**分组协作、跨组汇总**，但官方没有把它命名为某种固定模式，不能直接断言它就是去中心化或 Graph Engineering。
 >
@@ -67,30 +67,30 @@
 >
 > 每秒 50 token 和输入输出比都是为了估算而选的数值，不是 Astra 的实测速率。保持其他假设不变，每秒速率改成 25 或 100 token，费用就分别约为 **660 万或 2,650 万美元**。这里仅算模型 token 费用，不含工具和运行环境费用，也不代表 OpenAI 这次研究的实际成本。
 
-下面从已经写好的论文助手和环境助手开始，看看它们怎样调查复现这篇论文所需的条件，再把它们接进主循环。
+下面从已经写好的论文 Subagent 和环境 Subagent 开始，看看它们怎样调查复现这篇论文所需的条件，再把它们接进主循环。
 
-## 1. 先看已经写好的两个助手
+## 1. 先看已经写好的两个 Subagent
 
-打开 `main.py`，找到 `build_parent()`。这里准备了两个子助手：
+打开 `main.py`，找到 `build_parent()`。这里准备了两个 Subagent：
 
-| 子助手                | 工作说明                   | 能调用的工具                                                     |
+| Subagent                | 工作说明                   | 能调用的工具                                                     |
 | --------------------- | -------------------------- | ---------------------------------------------------------------- |
-| paper，论文助手       | `knowledge/paper.md`       | 读取 PDF、查找关键词；提供源码时还能读取代码                     |
-| environment，环境助手 | `knowledge/environment.md` | 检查 PyTorch 和可用设备；选择 AlexNet 实验时还能运行模型单步检查 |
+| paper，论文 Subagent       | `knowledge/paper.md`       | 读取 PDF、查找关键词；提供源码时还能读取代码                     |
+| environment，环境 Subagent | `knowledge/environment.md` | 检查 PyTorch 和可用设备；选择 AlexNet 实验时还能运行模型单步检查 |
 
-每个助手都是一个 `Agent` 对象。创建时，把模型、工作说明和工具交给它；调用它的 `run(任务)`，它就开始请求模型、执行工具，最后返回回答。这个循环在 `agent.py` 里，已经写好。
+每个 Subagent 都是一个 `Agent` 对象。创建时，把模型、工作说明和工具交给它；调用它的 `run(任务)`，它就开始请求模型、执行工具，最后返回回答。这个循环在 `agent.py` 里，已经写好。
 
-例如，`parent.subagents["paper"]` 存着论文助手。它的 `run("读取论文第 1 页，说明研究的问题")` 会让模型决定怎样使用读取工具，不是直接返回一段事先写好的摘要。
+例如，`parent.subagents["paper"]` 存着论文 Subagent。它的 `run("读取论文第 1 页，说明研究的问题")` 会让模型决定怎样使用读取工具，不是直接返回一段事先写好的摘要。
 
-这两个助手共用 API 客户端，但各自使用自己的工作说明和工具。每次调用 `run()`，都会新建消息列表，所以环境助手不会自动看到论文助手读过的文字。
+这两个 Subagent 共用 API 客户端，但各自使用自己的工作说明和工具。每次调用 `run()`，都会新建消息列表，所以环境 Subagent 不会自动看到论文 Subagent 读过的文字。
 
 ## 2. 第一题：让主循环调用它们
 
 打开 `main.py` 的 `MainAgent.run()`。这里的 `for` 就是要修改的主循环。模型请求和最终回答的处理都已写好，缺的是收到任务请求后怎样执行。
 
-`MainAgent(Agent)` 表示主助手可以使用 `Agent` 已提供的方法，例如执行工具的 `dispatch()`。但它有自己的 `run()`：主助手执行 `MainAgent.run()`，子助手执行 `Agent.run()`。这次只改前者。
+`MainAgent(Agent)` 表示 Main Agent 可以使用 `Agent` 已提供的方法，例如执行工具的 `dispatch()`。但它有自己的 `run()`：Main Agent 执行 `MainAgent.run()`，Subagent 执行 `Agent.run()`。这次只改前者。
 
-主助手通过名为 `task` 的工具分配工作。例如，模型可能在同一轮请求：
+Main Agent 通过名为 `task` 的工具分配工作。例如，模型可能在同一轮请求：
 
 ```text
 task(agent_type="paper", description="查清模型结构和训练设置，注明页码")
@@ -99,7 +99,7 @@ task(agent_type="environment", description="检查 PyTorch 和本机可用设备
 
 `agent_type` 指定找谁，`description` 说明让它做什么。模型也可能分两轮提出这两个请求，所以不能在循环里写死“先调用一次 paper，再调用一次 environment”。你要逐个执行模型本轮给出的请求。
 
-### 请求怎样找到子助手？
+### 请求怎样找到 Subagent？
 
 这一步已经写好，你可以沿着下面三处代码看：
 
@@ -107,9 +107,9 @@ task(agent_type="environment", description="检查 PyTorch 和本机可用设备
 | --------------------- | -------------------------------------------------------------------------------- |
 | `self.dispatch(call)` | 根据工具名找到函数、检查参数，再调用函数；这里的 dispatch 就是“执行这次工具请求” |
 | `task` 的 `handler`   | 保存 `self.call_subagent` 这个函数；handler 表示实际要执行的函数                 |
-| `call_subagent()`     | 按 agent_type 找到子助手，调用它的 run，等待回答                                 |
+| `call_subagent()`     | 按 agent_type 找到 Subagent，调用它的 run，等待回答                                 |
 
-因此，在主循环里执行 `self.dispatch(call)`，最终会进入对应子助手的 `run()`。这行调用返回时，子助手已经完成任务，返回值就是它的回答。
+因此，在主循环里执行 `self.dispatch(call)`，最终会进入对应 Subagent 的 `run()`。这行调用返回时，Subagent 已经完成任务，返回值就是它的回答。
 
 ```mermaid
 flowchart TD
@@ -117,9 +117,9 @@ flowchart TD
     B -->|没有| C[返回报告]
     B -->|有| D[第一题：执行本轮每个请求]
     D --> E[已提供：dispatch 找到 task 对应的函数]
-    E --> F[已提供：call_subagent 选择论文或环境助手]
-    F --> G[子助手运行自己的循环和工具]
-    G -->|返回回答| H[第一题：把回答存进主助手的消息列表]
+    E --> F[已提供：call_subagent 选择论文 Subagent 或环境 Subagent]
+    F --> G[Subagent 运行自己的循环和工具]
+    G -->|返回回答| H[第一题：把回答存进 Main Agent 的消息列表]
     H --> A
 ```
 
@@ -127,7 +127,7 @@ flowchart TD
 
 找到 `for call in calls:` 下的第一题 TODO，替换掉 `raise NotImplementedError(...)`，完成两件事：
 
-1. 执行当前请求，取得子助手的回答。
+1. 执行当前请求，取得 Subagent 的回答。
 2. 把回答作为一条工具结果，追加到 `messages`。
 
 消息要包含这三个字段：
@@ -136,11 +136,11 @@ flowchart TD
 | ------------ | --------------------------------------------------- |
 | role         | 字符串 `"tool"`，表示这是工具返回的结果             |
 | tool_call_id | 当前请求的 `call["id"]`，让模型知道回答对应哪个请求 |
-| content      | 刚刚得到的子助手回答                                |
+| content      | 刚刚得到的 Subagent 回答                                |
 
-完成本轮所有请求后，继续循环，把这些回答发给主助手的模型。不要在收到第一份子助手回答时就 `return`：它只是调查的一部分，主助手还要根据结果继续工作。
+完成本轮所有请求后，继续循环，把这些回答发给 Main Agent 的模型。不要在收到第一份 Subagent 回答时就 `return`：它只是调查的一部分，Main Agent 还要根据结果继续工作。
 
-子助手读取的 PDF 原文、检查环境的工具记录，都保存在子助手自己的消息列表中。主助手拿到的是它最后返回的回答，不要把两边的消息列表合在一起。
+Subagent 读取的 PDF 原文、检查环境的工具记录，都保存在 Subagent 自己的消息列表中。Main Agent 拿到的是它最后返回的回答，不要把两边的消息列表合在一起。
 
 ### 检查第一题
 
@@ -153,10 +153,10 @@ uv run pytest -m exercise1 -q
 
 测试会让模型按预设顺序提出任务请求，并检查：
 
-- 论文、环境助手是否都实际运行了各自的工具。
+- 论文 Subagent 和环境 Subagent 是否都实际运行了各自的工具。
 - 两份回答是否都进入主循环，是否对应正确的请求 id。
-- 一轮请求两个助手、分两轮请求，以及交换请求顺序时，是否都能完成。
-- 子助手的原始工具记录是否留在自己的消息列表里。
+- 一轮请求两个 Subagent、分两轮请求，以及交换请求顺序时，是否都能完成。
+- Subagent 的原始工具记录是否留在自己的消息列表里。
 
 测试使用预设回复，是为了稳定检查你的代码。通过后，还要接入真实模型运行第一题：
 
@@ -167,30 +167,30 @@ cp -n .env.example .env
 uv run --extra ml python main.py --exercise 1 --trace
 ```
 
-这条命令读取仓库中介绍 AlexNet 的论文 PDF，并用 torchvision 的模型实现运行单步实验。第一题完成后，`output/report.md` 应包含论文要求和本机实测结果。看终端记录，找到两个助手开始工作的位置，以及它们返回后主助手发起下一轮请求的位置。第一题不调用难度助手，不需要先完成第二题。
+这条命令读取仓库中介绍 AlexNet 的论文 PDF，并用 torchvision 的模型实现运行单步实验。第一题完成后，`output/report.md` 应包含论文要求和本机实测结果。看终端记录，找到两个 Subagent 开始工作的位置，以及它们返回后 Main Agent 发起下一轮请求的位置。第一题不调用复现难度 Subagent，不需要先完成第二题。
 
-## 3. 第二题：实现复现难度助手
+## 3. 第二题：实现复现难度 Subagent
 
-第一题的报告已经有论文记载的模型与训练要求，以及本机检查结果，但还没有专门检查复现所需的其他条件。例如，本机完成了随机输入上的单步实验，真实训练数据是否已经准备好？按论文中的样本数、训练轮数和每批样本数，总共需要多少次参数更新？第二题的难度助手要根据这些证据给出下一步建议。
+第一题的报告已经有论文记载的模型与训练要求，以及本机检查结果，但还没有专门检查复现所需的其他条件。例如，本机完成了随机输入上的单步实验，真实训练数据是否已经准备好？按论文中的样本数、训练轮数和每批样本数，总共需要多少次参数更新？第二题的复现难度 Subagent 要根据这些证据给出下一步建议。
 
-第二题让你写一位助手完成这项判断。打开 `MainAgent.run_difficulty(description)`，替换第二题的 TODO。主助手会把前两位的关键结果写进 description，再调用这个方法。
+第二题让你写一个 Subagent 完成这项判断。打开 `MainAgent.run_difficulty(description)`，替换第二题的 TODO。Main Agent 会把前两个 Subagent 的关键结果写进 description，再调用这个方法。
 
-你需要自己写这位助手的工作说明、创建它，并运行它的任务。可以参考 `build_parent()` 中前两个助手的创建方式，以及 `agent.py` 中 `Agent` 的参数。
+你需要自己写这个 Subagent 的工作说明、创建它，并运行它的任务。可以参考 `build_parent()` 中前两个 Subagent 的创建方式，以及 `agent.py` 中 `Agent` 的参数。
 
 ### 写清楚它要做什么
 
-工作说明第一行用“复现难度助手”，供进度条识别。后面用你自己的话说明：
+工作说明第一行用“复现难度 Subagent”，供进度条识别。后面用你自己的话说明：
 
 - 根据 description 中的论文和环境证据判断，不凭记忆补写论文设置。
 - 调用 `inspect_dataset` 检查指定的数据目录；未提供目录时，不能说电脑里没有数据。
 - 样本数、训练轮数、每批样本数齐全时，调用 `training_workload` 计算训练步数；缺数据就说明缺什么。
 - 区分“模型单步跑通”“完成论文规模的训练”“达到论文指标”，给出依据和下一步。
 
-检查和计算函数都已提供。你的工作是让这位助手知道什么时候使用它们、怎样根据结果回答，不需要再写一套目录扫描或计算代码。
+检查和计算函数都已提供。你的工作是让这个 Subagent 知道什么时候使用它们、怎样根据结果回答，不需要再写一套目录扫描或计算代码。
 
-### 创建并运行这位助手
+### 创建并运行这个 Subagent
 
-`self.difficulty_tools` 已经准备好这两个工具。用 `Agent` 创建助手时：
+`self.difficulty_tools` 已经准备好这两个工具。用 `Agent` 创建 Subagent 时：
 
 | 参数      | 使用什么                                  |
 | --------- | ----------------------------------------- |
@@ -199,16 +199,16 @@ uv run --extra ml python main.py --exercise 1 --trace
 | tools     | `self.difficulty_tools`，只给它这两个工具 |
 | max_turns | `self.max_turns`，限制它自己的循环次数    |
 
-然后调用它的 `run(description)`，返回它的回答。不要直接返回写死的复现建议，也不要把主助手的 task 工具交给它。
+然后调用它的 `run(description)`，返回它的回答。不要直接返回写死的复现建议，也不要把 Main Agent 的 task 工具交给它。
 
-这位助手不会自动看到前两位的消息。因此主助手必须把论文中的数据量、训练设置和来源页码，以及本机实测结果、未核实的条件写进 description。第二题的主助手工作说明已经要求它这样做，你要在实际运行时检查它有没有传完整。
+这个 Subagent 不会自动看到前两个 Subagent 的消息。因此 Main Agent 必须把论文中的数据量、训练设置和来源页码，以及本机实测结果、未核实的条件写进 description。第二题的 Main Agent 工作说明已经要求它这样做，你要在实际运行时检查它有没有传完整。
 
 ```mermaid
 sequenceDiagram
-    participant M as 主助手的循环
-    participant P as 论文助手
-    participant E as 环境助手
-    participant D as 你实现的难度助手
+    participant M as Main Agent 的循环
+    participant P as 论文 Subagent
+    participant E as 环境 Subagent
+    participant D as 你实现的复现难度 Subagent
     M->>P: description：调查论文要求
     P-->>M: 论文证据
     M->>E: description：检查本机
@@ -227,9 +227,9 @@ uv run pytest -m exercise2 -q
 uv run --extra ml python main.py --exercise 2 --trace
 ```
 
-第二题测试既会单独调用你的难度助手，也会检查三位助手一起工作的过程。它会核对工具是否实际执行、参数是否传对、结果是否交回模型，以及新的任务是否从独立的消息列表开始。协作测试需要第一题也已完成。
+第二题测试既会单独调用你的复现难度 Subagent，也会检查三个 Subagent 一起工作的过程。它会核对工具是否实际执行、参数是否传对、结果是否交回模型，以及新的任务是否从独立的消息列表开始。协作测试需要第一题也已完成。
 
-预设回复能检查调用过程，不能证明你写的工作说明会让真实模型始终作出正确判断。运行后打开 `output/report.md`，对照论文、工具结果和传给难度助手的任务，检查结论是否有依据。
+预设回复能检查调用过程，不能证明你写的工作说明会让真实模型始终作出正确判断。运行后打开 `output/report.md`，对照论文、工具结果和传给复现难度 Subagent 的任务，检查结论是否有依据。
 
 ## 4. 最后验收与提交
 
@@ -248,8 +248,8 @@ uv run --extra ml python -m tests.smoke --exercise 2
 
 提交修改后的 `main.py`、两题测试结果和第二题调查报告，并结合一次调用记录回答：
 
-1. 主助手在哪一行等待子助手？子助手返回后，主循环接着执行哪里？
-2. 主助手和子助手分别保存了哪些消息？
-3. 难度助手收到了哪些论文和环境证据？哪条建议还需要进一步验证？
+1. Main Agent 在哪一行等待 Subagent？Subagent 返回后，主循环接着执行哪里？
+2. Main Agent 和 Subagent 分别保存了哪些消息？
+3. 复现难度 Subagent 收到了哪些论文和环境证据？哪条建议还需要进一步验证？
 
 `agent.py`、`tools.py` 和测试都已提供，不需要修改。公开仓库暂不提供参考答案。

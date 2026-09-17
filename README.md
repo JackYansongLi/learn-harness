@@ -1,19 +1,19 @@
-# Subagent 开发课：论文复现调查助手
+# Subagent 开发课：论文复现调查 Agent
 
 你打算借助 Agent 复现一篇 AI 论文，却不知道该先让它做什么。要安排后面的代码和实验，先得查清论文用了什么模型、多少数据，以及自己的电脑能运行哪些计算。本课就从这项调查开始：输入论文 PDF，让 Agent 读论文、查环境，最后给出复现建议。
 
 作业分两题：
 
-1. **改主循环，调用两个已写好的 Subagent。** 论文助手读 PDF，环境助手检查本机。你执行模型提出的任务请求，把两位的回答交回主循环。自动化测试检查它们是否实际运行。
-2. **自己实现复现难度 Subagent。** 主助手把前两份结果交给它；你写工作说明，让它用数据目录检查、训练步数计算工具判断下一步。
+1. **改主循环，调用两个已写好的 Subagent。** 论文 Subagent 读 PDF，环境 Subagent 检查本机。你执行模型提出的任务请求，把两个 Subagent 的回答交回主循环。自动化测试检查它们是否实际运行。
+2. **自己实现复现难度 Subagent。** Main Agent 把前两份结果交给它；你写工作说明，让它用数据目录检查、训练步数计算工具判断下一步。
 
 ```mermaid
 flowchart TD
-    M[第一题：修改主循环] --> P[已提供：论文助手]
-    M --> E[已提供：环境助手]
+    M[第一题：修改主循环] --> P[已提供：论文 Subagent]
+    M --> E[已提供：环境 Subagent]
     P -->|论文证据| M
     E -->|本机实测| M
-    M -->|第二题：传入两份结果| D[你实现的难度助手]
+    M -->|第二题：传入两份结果| D[你实现的复现难度 Subagent]
     D -->|复现建议| M
     M --> R[调查报告]
 ```
@@ -25,10 +25,10 @@ flowchart TD
 | 文件 | 用途 |
 | --- | --- |
 | `main.py` | 两题都在这里：修改 MainAgent.run，实现 run_difficulty |
-| `agent.py` | 已提供：子助手使用的 Agent 循环、工具调用和 API 请求 |
+| `agent.py` | 已提供：Subagent 使用的 Agent 循环、工具调用和 API 请求 |
 | `tools.py` | 已提供：PDF、源码、数据目录与 PyTorch 工具 |
 
-按[教程](docs/tutorial.md)先完成第一题，再做第二题。第一题可以独立运行，不需要先写难度助手。
+按[教程](docs/tutorial.md)先完成第一题，再做第二题。第一题可以独立运行，不需要先写复现难度 Subagent。
 
 安装 [uv](https://docs.astral.sh/uv/getting-started/installation/) 后，在 macOS / Linux 终端准备作业环境：
 
@@ -39,16 +39,16 @@ uv sync --locked
 uv run pytest -m exercise1 -q
 ```
 
-测试使用预设模型回复，不需要密钥或 PyTorch。第一题未完成时，相关测试会失败。完成后，测试会检查两个助手是否真正使用了工具、返回的回答是否进入主循环。
+测试使用预设模型回复，不需要密钥或 PyTorch。第一题未完成时，相关测试会失败。完成后，测试会检查两个 Subagent 是否真正使用了工具、返回的回答是否进入主循环。
 
-第二题写完后，用下面的命令检查新增助手和完整流程：
+第二题写完后，用下面的命令检查新增 Subagent 和完整流程：
 
 ```bash
 uv run pytest -m exercise2 -q
 uv run pytest -q
 ```
 
-## 以 AlexNet 论文为例，运行调查助手
+## 以 AlexNet 论文为例，运行调查 Agent
 
 测试通过后，再接入真实模型。仓库已包含 [AlexNet 原论文](examples/alexnet/paper.pdf)和单步实验，安装 PyTorch 并配置 DeepSeek 密钥即可运行：
 
@@ -59,7 +59,7 @@ cp .env.example .env
 uv run --extra ml python main.py --exercise 1 --trace
 ```
 
-第一题用 `--exercise 1`，第二题改成 `--exercise 2`。不传 PDF 路径时，程序使用仓库里的 AlexNet 论文并启用配套实验。终端会打印任务、工具请求和结果；进度条显示当前助手、等待状态和已用时间。第一题有论文、环境、最终报告三个阶段，第二题加上难度判断，共四个阶段。
+第一题用 `--exercise 1`，第二题改成 `--exercise 2`。不传 PDF 路径时，程序使用仓库里的 AlexNet 论文并启用配套实验。终端会打印任务、工具请求和结果；进度条显示当前 Agent、等待状态和已用时间。第一题有论文、环境、最终报告三个阶段，第二题加上难度判断，共四个阶段。
 
 结束后打开 `output/report.md`。报告中的环境结论来自本机工具：它用随机输入完成一次前向计算、反向传播和参数更新。这能检查模型是否跑得通；论文准确率仍需真实数据上的训练和评估。
 
@@ -97,13 +97,13 @@ uv run --extra ml python main.py \
 
 `--pdf` 接收不超过 20 MB、能够提取文字的 PDF，暂不支持扫描件 OCR。`--code` 只读取指定源码；`--dataset` 检查 ImageFolder 格式的 `train/val/类别名/` 目录，不判断数据集是否完整。工具读出的文字、代码和环境结果会随请求发给 DeepSeek。
 
-换 PDF 后，助手仍能读论文和检查环境，但要实际运行那篇论文的模型，还得提供对应实验函数。目前只注册了 AlexNet 实验，由 `--experiment alexnet` 开启；不传 `--pdf` 时会自动启用它；传入其他 PDF 时不会自动运行 AlexNet。
+换 PDF 后，Agent 仍能读论文和检查环境，但要实际运行那篇论文的模型，还得提供对应实验函数。目前只注册了 AlexNet 实验，由 `--experiment alexnet` 开启；不传 `--pdf` 时会自动启用它；传入其他 PDF 时不会自动运行 AlexNet。
 
 普通入口也接受 `--device`。需要查看调用过程时加 `--trace`；需要关闭进度条时加 `--no-progress`，报告照常输出。
 
 ## 用真实调用验收
 
-报告生成后，按题号运行在线验收，检查参与调查的助手是否实际使用了各自的工具：
+报告生成后，按题号运行在线验收，检查参与调查的 Agent 是否实际使用了各自的工具：
 
 ```bash
 uv run --extra ml python -m tests.smoke --exercise 1

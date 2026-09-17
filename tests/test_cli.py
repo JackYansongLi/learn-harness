@@ -53,7 +53,7 @@ def test_trace_prints_all_tool_results_without_changing_messages():
     from tests.helpers import ScriptedModel, answer
 
     messages = [
-        {"role": "system", "content": "论文助手"},
+        {"role": "system", "content": "论文 Subagent"},
         {"role": "user", "content": "read"},
         {"role": "assistant", "content": None},
         {"role": "tool", "tool_call_id": "a", "content": "first evidence"},

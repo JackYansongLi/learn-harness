@@ -12,7 +12,7 @@ from tools import ALEXNET_PDF
 
 
 def test_two_provided_subagents_work_before_assignment_is_completed(monkeypatch):
-    """第一题还没写，也能单独运行已提供的论文、环境助手。"""
+    """第一题还没写，也能单独运行已提供的论文 Subagent、环境 Subagent。"""
     import main
 
     probes = []
@@ -71,7 +71,7 @@ def test_main_loop_runs_both_subagents_and_returns_their_actual_answers(
     replies.append(answer("FINAL_" + token))
     model = ScriptedModel(*replies)
     parent = build_parent(main_agent_class, model, ALEXNET_PDF, device="cpu", exercise=1)
-    parent.run_difficulty = lambda _: pytest.fail("第一题不应调用未完成的难度助手")
+    parent.run_difficulty = lambda _: pytest.fail("第一题不应调用未完成的复现难度 Subagent")
     assert parent.run("PARENT_PRIVATE_" + token) == "FINAL_" + token
     assert [row[0] for row in executed] == list(order)
     assert ("paper", ALEXNET_PDF, "2") in executed
@@ -130,7 +130,7 @@ def test_main_loop_obeys_turn_limit(main_agent_class):
     parent = build_parent(main_agent_class, model, ALEXNET_PDF, max_turns=1)
     with pytest.raises(StepLimitExceeded):
         parent.run("investigate")
-    assert len(model.requests) == 2  # 主助手一轮、子助手一轮，不能把两者混算。
+    assert len(model.requests) == 2  # Main Agent 一轮、Subagent 一轮，不能把两者混算。
 
 
 def difficulty_tools(events, token):
@@ -173,7 +173,7 @@ def test_new_subagent_calls_its_tools_and_returns_model_answer(
     assert events == [("dataset",), ("workload", samples, epochs, batch)]
     first = model.requests[0]
     assert first["messages"][0]["role"] == "system"
-    assert first["messages"][0]["content"].splitlines()[0] == "复现难度助手"
+    assert first["messages"][0]["content"].splitlines()[0] == "复现难度 Subagent"
     assert len(first["messages"][0]["content"].splitlines()) > 1
     assert first["messages"][1] == {"role": "user", "content": handoff}
     assert len(first["messages"]) == 2
