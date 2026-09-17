@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+output/
+.DS_Store
+*.egg-info/
+.vscode/
+
+# 教师答案只保留在本机
+/solution/
