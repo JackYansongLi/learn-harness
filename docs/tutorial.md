@@ -474,27 +474,34 @@ flowchart TD
 
 ## 6. 论文与仓库 review：Paper2Agent
 
-本课的程序读一篇论文，检查本机条件，再判断复现可以从哪里开始。如果调查结束后，你希望 Agent 继续安装论文所需的环境、运行作者的代码，并把其中的方法用到自己的数据上，程序还需要增加哪些工作？[Paper2Agent 的论文《Reimagining research papers as interactive and reliable AI agents》](https://www.nature.com/articles/s41586-026-11044-y)讨论的就是这一方向。
+本课用到的工具都是提前写好的。比如，环境 Subagent 能运行 AlexNet 单步实验，是因为我们已经把这段实验代码做成了工具。换一篇论文，如果想让 Agent 运行其中的方法，就得有人找代码、装依赖，再写出相应的工具。
 
-下面结合论文和[开源仓库](https://github.com/jmiao24/Paper2Agent)来看它怎样实现。仓库会继续更新，这里以 2026 年 9 月 18 日读到的版本 [`8c2d059`](https://github.com/jmiao24/Paper2Agent/tree/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6)为准。实验数字来自作者的论文与补充材料，本节没有重新运行这些实验。
+[Paper2Agent](https://www.nature.com/articles/s41586-026-11044-y)想把这部分工作也交给 Agent。它读取论文和对应仓库，运行作者的示例，把其中的分析步骤整理成函数，测试通过后供其他 Agent 调用。读者便可以带着自己的数据提出分析要求，由 Agent 调用这些函数完成计算。
 
-### 他们想让读者怎样使用一篇论文？
+> 论文题目是《Reimagining research papers as interactive and reliable AI agents》。下面的实验结果均为作者报告，我没有重新运行这些实验；源码按 2026 年 9 月 18 日读到的[仓库版本 `8c2d059`](https://github.com/jmiao24/Paper2Agent/tree/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6)介绍。
 
-假设你想用一篇论文的方法分析自己的数据。即使作者公开了代码，你通常也得先安装依赖，找到示例，弄清输入格式，再把示例里的文件路径和参数改成自己的。Paper2Agent 尝试让一组 Agent 完成这些准备工作，生成一套可以反复调用的工具。准备完成后，你把数据和分析要求交给连接了这些工具的 Agent，由它选择工具、执行分析、解释结果。
+### 它做了什么
 
-论文中的 Scanpy 案例比较容易看清这个目标。Scanpy 是分析单细胞数据的软件，作者选取其中的预处理与聚类流程，生成了 7 个工具，并整理出各步骤的调用顺序。用户提供数据路径，Agent 就能依次做质量检查、归一化、降维和聚类，返回分析结果。论文报告，这套工具的生成和验证约用了 45 分钟，API 成本约 13 美元；这是作者那次构建的记录，之后分析新数据仍会产生运行成本。[论文 Fig. 3 与 Scanpy 一节](https://www.nature.com/articles/s41586-026-11044-y#Sec4)
+论文用了 Scanpy 作为例子。Scanpy 是分析单细胞数据的软件，作者选取其中的预处理与聚类流程，让 Paper2Agent 生成了 7 个工具，并整理出调用顺序。用户提供数据路径后，连接这些工具的 Agent 就可以依次检查数据质量、做归一化、降维和聚类，返回分析结果。
 
-这里要分清两个阶段：**Paper2Agent 先生成并测试工具，使用者的 Agent 再调用这些工具。** 前一个阶段需要读源码、写代码和运行测试；后一个阶段可以复用已经准备好的函数。论文主要评估的正是这种复用能否让分析更可靠。
+生成并验证这 7 个工具，作者报告用了约 45 分钟、13 美元 API 费用。这笔费用花在准备工具上；之后处理新数据，还要支付模型调用和程序运行的成本。准备好的工具可以反复使用，后续分析就不必每次都从读源码、写调用代码开始。[论文 Fig. 3](https://www.nature.com/articles/s41586-026-11044-y#Sec4)
 
-### 怎样把论文里的代码变成工具？
+### 几个 Subagent 怎么配合
 
-先看论文的设计。它让一个负责分配工作的 Agent 调用不同的 Subagent，依次完成六步：找到代码仓库、配置环境、寻找可运行的示例、执行示例、提取并测试工具、组装 MCP 服务。同一步里有多个独立示例时，可以并行处理。这里的 MCP 可以先理解成一套统一的工具调用接口：服务端列出工具名称和参数，使用它的 Agent 按这个接口发起调用，取得执行结果。[论文 Methods：Details on implementing Paper2Agent](https://www.nature.com/articles/s41586-026-11044-y#Sec9)
+它的分工和本课类似：一个 Main Agent 分配任务，几个 Subagent 分别完成其中一部分。找到论文对应的仓库后，先配置环境、寻找可运行的示例，再执行示例、提取工具、测试和修复，最后把通过测试的工具放进 MCP 服务。同一阶段有多个独立示例时，可以并行处理。[论文 Methods](https://www.nature.com/articles/s41586-026-11044-y#Sec9)
 
-其中最关键的是“执行示例”和“测试工具”为什么要分开。假设原仓库有一个聚类示例，输入数据后会产生分组结果和图片。执行示例的 Subagent 先把它真实跑一遍，保存这些输出，作为后面比较的依据。负责提取工具的 Subagent 再把示例整理成可复用的函数，让数据路径、阈值等成为参数。测试 Subagent 调用新函数，检查它是否生成了预期文件、数值是否在允许误差内、图片是否与参考结果相符。失败后继续诊断和修改；反复失败的工具不进入最终服务。
+这里先解释 MCP。我们在本课用 `Tool.schema()` 告诉模型工具叫什么、需要哪些参数，再用 `dispatch()` 执行调用。MCP 规定了一套统一的通信方式，让 Agent 能向另一个程序查询工具、传入参数、取得结果。Paper2Agent 把生成的函数放进这样的程序里，别的 Agent 接上它，就能调用这些函数。
 
-这样一来，“这个函数写完了”和“这个函数与原示例的结果一致”就有了各自的检查步骤。Agent 的下一轮也有具体反馈可读：缺哪个依赖、哪个数值不符、哪张图有差异。这个过程仍是我们熟悉的 loop：调用工具，读回结果，再决定继续修改还是结束。
+但函数写出来之后，怎么知道它有没有改错原来的计算？Paper2Agent 在提取工具之前，先让一个 Subagent 把原仓库的示例跑一遍，保留数值、文件和图片。后面测试新函数时，就拿这些输出作比较。
 
-```mermaid
+负责实现工具的 Subagent 要把示例里写死的数据路径、阈值等改成参数，让函数能接收其他数据。负责测试的 Subagent 再用原来的输入调用它，检查输出文件、数值误差和图片是否符合参考结果。出错就修复，再运行；反复失败的函数会被排除。这里的 loop 有了明确的反馈：哪一步报错、哪个数值不符，决定了下一轮要改什么。
+
+![Paper2Agent 从论文代码生成工具、测试并供 Agent 调用的流程图](diagrams/paper2agent.svg)
+
+<details>
+<summary>查看流程图源码</summary>
+
+```text
 flowchart TD
     A[论文及对应代码仓库] --> B[配置环境，寻找示例]
     B --> C[执行原示例<br/>保存数值、文件和图片]
@@ -506,69 +513,64 @@ flowchart TD
     F --> G[使用者的 Agent<br/>调用工具分析数据]
 ```
 
-论文还把服务内容分成三类。**Tools** 是能执行的函数；**Resources** 是论文正文、补充材料、数据位置等可读取的资料；**Prompts** 是分析步骤的说明，例如 Scanpy 的工具应按什么顺序调用。三者分别解决“能做什么”“可以查什么”和“怎样组织这些操作”。提示词写明顺序之后，仍要由 Agent 实际发起调用，执行结果才会产生。[论文 Fig. 1 与 Overview 一节](https://www.nature.com/articles/s41586-026-11044-y#Sec2)
+</details>
 
-### 当前仓库把这些工作写在哪里？
+除了能执行的函数，论文还把阅读材料和操作说明一起放进 MCP 服务，分为三类：
 
-打开这个仓库时，你不会看到一个和本课 `MainAgent.run()` 一样的入口循环。当前版本把工作流程写成了 **skill**：一组供 Claude Code、Codex 等现有 Agent 读取的工作说明和配套脚本。请求模型、启动 Subagent、读写文件和执行命令的能力由这些宿主提供。仓库负责规定任务怎样拆、各阶段交什么结果、满足什么条件才能继续。
+- **Tools**：执行分析的函数。
+- **Resources**：论文正文、补充材料、数据位置等资料。
+- **Prompts**：多步分析的操作说明。例如 Scanpy 的预处理应该先调用哪个工具，再把结果交给哪个工具。
 
-可以按下面的顺序读源码：
+读资料、按说明选工具、执行后再看结果，这些仍然由使用它们的 Agent 完成。Prompts 只是说明步骤，本身不会执行计算。[论文 Fig. 1](https://www.nature.com/articles/s41586-026-11044-y#Sec2)
 
-| 文件或目录 | 读它时关注什么 |
+### 仓库从哪里读起
+
+当前仓库用 skill 编排这些工作。你可以把 skill 理解成给现有 Agent 阅读的工作说明，附带一些脚本。Claude Code、Codex 等负责请求模型、启动 Subagent 和执行命令，Paper2Agent 则告诉它们怎样拆任务、交回哪些文件、怎样检查结果。因此，这个仓库没有像本课一样，再写一个 `MainAgent.run()`。
+
+先读总入口，再看代码转换和 Subagent 分工：
+
+| 文件 | 里面写了什么 |
 | --- | --- |
-| [`skills/paper2agent/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/SKILL.md) | 总入口。论文与补充材料交给 `paper2skill`，代码仓库交给 `paper2mcp`；需要阅读资料包和 MCP 工具两类产物时，分别处理，再组合交付。 |
-| [`paper2skill/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2skill/SKILL.md) | 怎样把 PDF、表格和图片整理成可阅读的资料包，并对照原件检查提取结果。这条流程本身不执行论文方法。 |
-| [`paper2mcp/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/SKILL.md) | 怎样从已有源码选取工具，执行参考示例，封装、验证并交付 MCP 服务。 |
-| [`paper2mcp/references/orchestration.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/references/orchestration.md) | 哪些 Subagent 能同时运行，哪些必须等待；谁负责安装依赖，谁可以修改哪些文件。 |
-| [`paper2mcp/references/agents/`](https://github.com/jmiao24/Paper2Agent/tree/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/references/agents) | 配置环境、寻找示例、执行示例、实现工具、核验工具这几类 Subagent 各自的工作说明。 |
+| [`skills/paper2agent/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/SKILL.md) | 论文和附件交给 `paper2skill`，代码仓库交给 `paper2mcp`。需要两类结果时，分别完成后再合在一起。 |
+| [`paper2skill/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2skill/SKILL.md) | 把 PDF、表格和图片整理成阅读资料，并对照原件检查。这部分不执行论文的方法。 |
+| [`paper2mcp/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/SKILL.md) | 运行原仓库代码，提取工具，完成测试，最后打包 MCP 服务。 |
+| [`paper2mcp/references/orchestration.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/references/orchestration.md) | 谁先做、谁可以同时做、谁负责安装依赖、谁可以修改哪些文件。各类 Subagent 的工作说明在同目录的 [`agents/`](https://github.com/jmiao24/Paper2Agent/tree/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/references/agents) 中。 |
 
-当前实现还明确要求：**完成工具实现后，要启动新的 Subagent 做核验。** 实现者和核验者必须是不同的 Agent，不能在原对话里换一句“现在请你检查代码”就算完成独立检查。每个工作阶段都有报告，记录 Agent 身份、输出路径和文件校验值，便于确认核验对应的是哪一版代码。
+这里有一条要求和前面讨论的独立检查有关：**工具写完后，另开 Subagent 做核验。** 核验者必须与所有实现者不同，不能让原来的 Agent 在同一段对话里换个角色就算检查过了。它要拿到源码、参考输出和测试记录，自己作判断。
 
-这里有两个值得读的 Python 脚本。[`verify_workflow.py`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/scripts/verify_workflow.py)检查上述记录、阶段顺序和文件是否改变；[`verify_mcp_server.py`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/scripts/verify_mcp_server.py)会实际启动服务，检查工具列表和参数。给后者传入验收用例，它还会调用工具并检查结果；如果没有传用例，只列出工具不能算完成运行验收。记录检查通过，也不代表科学计算结果正确，后者仍需与参考输出比较。
+仓库还提供两个检查脚本。`verify_workflow.py` 核对 Agent 身份记录、阶段顺序、文件校验值；`verify_mcp_server.py` 启动 MCP 服务，检查工具列表和参数，传入验收用例后还会实际调用工具。这两种检查有各自的范围：记录齐全不代表计算正确，只列出工具也不代表调用成功。具体数值和图片仍要与原示例比较。[脚本目录](https://github.com/jmiao24/Paper2Agent/tree/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/scripts)
 
-因此，论文和当前仓库也有区别。论文用 tools、resources、prompts 组成论文 MCP；当前顶层入口则把阅读资料包和可执行工具分开构建。MCP resources、工作流 prompts 和远程部署在当前代码流程中列为[可选扩展](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/references/extensions.md)，不能把论文里的所有功能都当成当前默认流程必然生成的内容。
+读仓库时也会发现，它与论文的组织方式已经有些不同。当前入口把阅读资料和可执行工具分开处理，MCP resources、工作流 prompts、远程部署列在[可选扩展](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/references/extensions.md)中。按默认流程运行，不一定得到论文介绍的全部功能。
 
-### 分别对应本课哪些知识？
+### 和本课的对应关系
 
-| 本课已经接触的内容 | Paper2Agent 怎样使用或扩展它 |
+| 本课中的代码或安排 | Paper2Agent 中对应的做法 |
 | --- | --- |
-| 第一题：Main Agent 分配任务，等 Subagent 返回后继续循环 | 由负责协调的 Agent 安排配置环境、执行示例、实现和测试工具。除了等结果，还要检查前一步的产物是否足以支持下一步。 |
-| 第二题：读取 `knowledge/difficulty.md`，给 Subagent 配置自己的工具 | 各类 Subagent 也有单独的工作说明，但代码执行等能力由宿主提供。本课要你亲手实现的调用机制，在那里由宿主承担。 |
-| 每次 `Agent.run()` 新建消息列表 | 当前仓库要求另启核验 Subagent，使核验不沿用实现者的完整对话；同时把源码、参考输出和测试记录交给它检查。 |
-| `Tool.schema()` 描述工具，`dispatch()` 执行工具并返回结果 | MCP 把工具名称、参数和返回结果的交互统一起来。调用的基本过程相通，执行可以发生在另一个服务中。 |
-| 工具执行后，把结果放回 `messages` | 执行示例和测试产生的错误、数值、文件成为后续修改的依据。这里的反馈直接影响是否保留某个工具。 |
-| 离线测试检查调用过程，在线验收检查真实工具是否运行 | Paper2Agent 进一步比较封装前后的科学计算结果，并在打包后重新安装、调用，检查交付的程序能否使用。 |
+| `MainAgent.run()` 分配任务，等 Subagent 返回后继续 | 协调 Agent 安排各项工作，还要检查返回的文件和测试结果，才能进入下一阶段。并行处理多个示例时，需要规定各自修改哪些文件、哪些结果必须等齐。 |
+| 从 `knowledge/difficulty.md` 读取工作说明 | 各类 Subagent 也有自己的工作说明；启动和工具调用由现有的编程 Agent 提供。 |
+| 每次 `Agent.run()` 新建消息列表 | 核验工作交给另开的 Subagent，通过源码、参考输出和记录了解任务。 |
+| `Tool.schema()` 与 `dispatch()` | 通过 MCP 告诉使用者有哪些工具、需要什么参数，再执行调用、返回结果。 |
+| 工具结果放回 `messages`，供下一轮使用 | 执行错误和测试结果决定接下来怎样修改，失败的工具可能被排除。 |
+| 环境 Subagent 检查本机；测试检查工具是否调用、实验是否运行 | 环境 Subagent 还要安装依赖；测试还要比较新工具与原示例的输出，并检查打包后的程序能否重新安装、调用。 |
 
-两者也有一个很实际的差别：本课的环境 Subagent 主要检查已有条件，Paper2Agent 的环境 Subagent 还要安装依赖、建立运行环境。前者回答“能不能做”，后者要为后续执行准备条件，权限和失败处理自然也更多。
+### 创新与实验结果
 
-另外，本课的 Subagent 按顺序执行，交回的主要是一段文字。Paper2Agent 同一阶段可能有多个 Subagent 并行处理不同示例，还要交接代码、图片、日志和测试文件。因此，它需要规定文件归谁修改、依赖由谁安装、哪些结果必须等齐。读到这些约定时，可以把它们理解为我们这个短循环在处理更多任务时需要补上的条件。
+我认为这项工作的新意，在于把论文的代码整理成一套**经过测试、可以反复调用的工具**。原示例的输出用来检查工具有没有改错，统一的接口让其他 Agent 能调用它，流程说明则告诉 Agent 怎样组合这些操作。多 Agent 分工、MCP 和自动化测试共同完成了这件事；评价它的效果，也应该看工具是否能用、分析结果是否可靠。
 
-### 创新体现在哪里，实验支持了多少？
+作者做了两层评估：先看多少论文能成功生成工具，再看生成的工具能否帮助 Agent 回答问题。
 
-我认为它最值得借鉴的贡献是：**把“让 Agent 读论文、临时写一段分析代码”，推进成了“先准备一套经验证的论文工具，再反复用于分析”。** 多 Agent 分工、MCP、自动化测试都已有各自的用途；这项工作把它们组织成从论文材料到可执行工具的流程，并用实际任务评估这个流程。
+| 实验 | 作者报告的结果 |
+| --- | --- |
+| 转换 100 篇计算生物学论文 | 74 篇成功；这 74 篇提出了 599 个工具，其中 593 个通过自动验证。 |
+| 从成功的 74 篇中整理 300 道基于示例的问题 | 同用 Sonnet 4，Paper2Agent 的准确率为 91.2 ± 1.6%，直接访问仓库的 Claude Code 为 80.3 ± 2.3%。 |
+| 在 AlphaGenome 案例中去掉负责测试和改进的 Agent | 15 道示例题的准确率从 98.7 ± 1.3% 降到 69.3 ± 4.5%。 |
 
-它的设计有三个具体特点。
+`±` 是作者报告的标准误。前两项见[正文](https://www.nature.com/articles/s41586-026-11044-y#Sec5)和 [Methods](https://www.nature.com/articles/s41586-026-11044-y#Sec14)，第三项见[补充材料 §7](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2agent-paper/references/supplement.md#7-additional-details-for-large-scale-evaluation-of-paper2agent)。
 
-1. **把原仓库的运行结果用作检查依据。** 先执行示例，再检查新工具是否保留原来的行为。这样，判断标准来自真实运行结果。当前仓库还要求工具绑定到已有源码，优先调用原函数或脚本，减少重新实现科学方法时引入的差异。
-2. **把工具准备与后续分析分开。** 工具验证后可以重复调用，使用者的 Agent 可以把精力放在选择参数、组合步骤和解释结果上。论文同时统计构建成本和每次查询的成本，提醒我们这套准备工作并非免费。
-3. **让不同论文提供的工具和数据可以一起使用。** 论文把 AlphaGenome 的预测与另外两篇论文的基因扰动数据结合，调查一个与银屑病有关的候选基因。这对应前面讨论的外部证据：不同 Agent 带来不同来源的预测和实验数据，分析才有机会互相核对。[论文 Fig. 4](https://www.nature.com/articles/s41586-026-11044-y#Sec6)
+这几个数字回答的是不同的问题。74% 表示成功构建了工具，91.2% 表示这些成功案例上的答题准确率，不能合起来说成“复现了 91.2% 的论文”。去掉测试 Agent 的实验则说明，测试对 AlphaGenome 这个案例有明显作用，还不能推广成所有多 Agent 系统的规律。
 
-这些想法有没有效果，需要看具体评测范围。下面几项最能帮助我们判断：
+失败的 26 篇也值得看：有的缺代码，有的缺数据或模型文件，有的装不好依赖，有的脚本难以用于新输入。只有 PDF 时，Paper2Agent 可以整理阅读资料；要执行方法，仍得有相应的程序和运行条件。即使工具通过了测试，也只是说明它在所测输入上重现了原示例的输出，原方法的错误和适用范围不会因此消失。
 
-| 作者做了什么实验 | 报告的结果 | 读这个结果时要保留的条件 |
-| --- | --- | --- |
-| 将 100 篇计算生物学论文转换成可调用工具 | 74 篇成功；在这 74 篇中提出的 599 个工具里，593 个通过自动验证 | 这是工具构建成功率，不能说 100 篇论文都已完整复现。 |
-| 从成功转换的 74 篇论文中整理 300 道基于示例的问题 | 同用 Sonnet 4，Paper2Agent 为 `91.2 ± 1.6%`，直接访问仓库的 Claude Code 为 `80.3 ± 2.3%` | 问题来自已经成功转换的论文，结果不包含前面失败的 26 篇。 |
-| 在 AlphaGenome 案例中移除负责测试和改进的 Agent | 15 道示例问题上的准确率从 `98.7 ± 1.3%` 降到 `69.3 ± 4.5%` | 说明测试在这个案例中很重要，不能据此给所有多 Agent 系统下结论。 |
+论文还展示了跨论文分析：把 AlphaGenome 的预测与另外两篇论文的基因扰动数据结合，调查一个与银屑病有关的候选基因。不同论文提供不同证据，这让我们看到了把工具准备好之后，还能怎样组合使用。不过，这个例子里 Agent 提出了 10 种验证策略，最后采用哪一种由研究者选择，后续分析用的也是已有实验数据。结果支持一个候选解释，不能当成 Agent 已经重新做了生物实验，或证明了最终的因果关系。[论文 Fig. 4 与讨论](https://www.nature.com/articles/s41586-026-11044-y#Sec6)
 
-表中的 `±` 是作者报告的标准误。前两项见[正文的大规模评估](https://www.nature.com/articles/s41586-026-11044-y#Sec5)和 [Methods](https://www.nature.com/articles/s41586-026-11044-y#Sec14)，第三项见[仓库收录的补充材料 §7](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2agent-paper/references/supplement.md#7-additional-details-for-large-scale-evaluation-of-paper2agent)。第三项是一次“拿掉某个部件再比较”的实验，帮我们区分提升来自完整流程中的哪一部分，而不只是看到最后的准确率更高。
-
-### 哪些地方还不能直接相信？
-
-首先，验证结果与原示例一致，验证的是**方法有没有被正确执行和封装**。如果原来的方法有错误或适用条件有限，这些问题仍可能保留下来。论文也明确指出，开放式科学问题可能有多个合理答案，与一个参考答案一致不能直接等同于科学结论正确。
-
-其次，可用代码、数据和环境仍是限制。在那 100 篇计算生物学论文里，失败原因包括代码缺失、数据或模型文件缺失、依赖安装失败，以及脚本难以推广到新输入。只有 PDF 时，可以整理阅读资料；要执行论文里的方法，还需要相应的程序和运行条件，这些缺口仍要逐项解决。
-
-最后，多论文合作案例里也有人的判断。Agent 提出了 10 个候选验证策略，研究者从中选出一种，再让它执行分析。后续比较使用的是已有实验数据。这支持“Agent 可以帮助组合证据和执行分析”，不能写成 Agent 自己重新做了生物实验，或已经证明了最终的因果关系。[论文 Discussion 与 Methods](https://www.nature.com/articles/s41586-026-11044-y)
-
-回到这节课，最值得带走的是一个具体的设计问题：**Subagent 交回什么结果，Main Agent 才有依据进入下一步？** 第一题先让你把调用和返回接起来；第二题让你为一种判断配好工作说明与工具。Paper2Agent 在此基础上继续要求运行记录、参考输出和测试结果。宿主仍然通过 Agent loop 执行任务，额外增加的是每个阶段的验收要求：协调 Agent 收到回答后，还要检查规定的记录和结果，才能把这一步认定为完成。
+这也解释了作者为什么把开放式科学问题留给研究者共同判断：同一个问题可能有多个合理答案，与某个参考答案一致，并不足以证明科学结论正确。本课先让你接通 Subagent 的调用和返回；读 Paper2Agent 时，可以继续看它怎样检查返回的代码和测试结果，再决定下一步做什么。

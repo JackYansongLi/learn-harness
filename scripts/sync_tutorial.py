@@ -9,6 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE = PROJECT_ROOT / "docs/tutorial.md"
 DEFAULT_SITE_ROOT = Path("/Users/jackyansongli/jackyansongli.github.io")
 TARGET = Path("docs/content/docs/zh/subagent-tutorial.md")
+ASSETS = {"diagrams/paper2agent.svg": "images/subagent/paper2agent.svg"}
 REPOSITORY_URL = "https://github.com/JackYansongLi/learn-harness"
 DESCRIPTION = (
     "以 AlexNet 论文为例，通过调用现成 Subagent 和实现复现难度 Subagent 两道练习，"
@@ -32,6 +33,8 @@ def render_page(source: str) -> str:
         "../examples/alexnet/paper.pdf",
         f"{REPOSITORY_URL}/blob/main/examples/alexnet/paper.pdf",
     )
+    for source_path, website_path in ASSETS.items():
+        body = body.replace(f"]({source_path})", f"](/{website_path})")
     frontmatter = (
         "---\n"
         f"title: {json.dumps(title, ensure_ascii=False)}\n"
@@ -60,23 +63,38 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--site-root", type=Path, default=DEFAULT_SITE_ROOT, help="官网仓库根目录"
     )
-    parser.add_argument("--check", action="store_true", help="内容相同返回 0，不同返回 1；不写入")
+    parser.add_argument(
+        "--check", action="store_true", help="教程和配图相同返回 0，不同返回 1；不写入"
+    )
     args = parser.parse_args(argv)
-    target = args.site_root.expanduser().resolve() / TARGET
+    site_root = args.site_root.expanduser().resolve()
+    target = site_root / TARGET
     try:
-        expected = render_page(SOURCE.read_bytes().decode("utf-8")).encode("utf-8")
-        current = target.read_bytes() if target.exists() else None
-        if current == expected:
-            print(f"已同步：{target}")
+        expected_files = {
+            target: render_page(SOURCE.read_bytes().decode("utf-8")).encode("utf-8")
+        }
+        for source_path, website_path in ASSETS.items():
+            expected_files[site_root / "public" / website_path] = (
+                SOURCE.parent / source_path
+            ).read_bytes()
+        changed = {
+            path: expected
+            for path, expected in expected_files.items()
+            if not path.exists() or path.read_bytes() != expected
+        }
+        if not changed:
+            print(f"已同步：{target}（含配图）")
             return 0
         if args.check:
-            print(f"待同步：{target}")
+            for path in changed:
+                print(f"待同步：{path}")
             return 1
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(expected)
+        for path, expected in changed.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(expected)
+            print(f"已更新：{path}")
     except (OSError, UnicodeError, ValueError) as exc:
         parser.exit(2, f"同步失败：{exc}\n")
-    print(f"已更新：{target}")
     return 0
 
 
