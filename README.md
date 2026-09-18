@@ -115,3 +115,32 @@ uv run --extra ml python -m tests.smoke --exercise 2
 验收代码都在 `tests/`，你无需修改。验收也接受 `--device cuda`、`--device mps`、`--device cpu`。调查返回结果后，本次验收会覆盖 `output/smoke.json` 和 `output/report.md`；是否通过，以命令结果和记录中的 `checks` 为准。它检查执行过程；报告里的论文结论仍需回到原文核对。
 
 普通运行和在线验收都会消耗 API 额度。API 使用 `deepseek-flash`，对应 DeepSeek V4.1 Flash，见 [DeepSeek 模型表](https://api-docs.deepseek.com/quick_start/pricing/)。本课关闭 thinking。密钥放在本地 `.env`，生成文件放在 `output/`，两者都不会提交。
+
+## 教师：验证本地参考答案
+
+测试和运行命令都支持 `--impl solution`，会加载 `solution/agent.py` 中的 `MainAgent`。省略这个参数，测的是 `main.py` 中的作业代码。两者使用同一套测试，不需要把答案复制到 `main.py`。
+
+先检查两题的调用过程：
+
+```bash
+# 运行全部离线测试，检查参考答案和已提供的代码
+uv run pytest --impl solution -q
+
+# 也可以按题检查
+uv run pytest --impl solution -m exercise1 -q
+uv run pytest --impl solution -m exercise2 -q
+```
+
+第一题检查 Main Agent 是否实际调用论文和环境 Subagent，并把各自的回答交回模型。第二题检查是否读取 `knowledge/difficulty.md`、调用对应工具、传递参数，以及每次任务是否使用独立的消息列表。测试用预设模型回复，可以稳定检查这些代码行为。
+
+随后用真实 API 验收。配置好 `.env` 后，在支持 MPS 的 Mac 上运行：
+
+```bash
+uv run --extra ml python -m tests.smoke --impl solution --exercise 2 --device mps
+```
+
+`--exercise 2` 会运行论文、环境和复现难度三个 Subagent，覆盖两题的协作流程；只验收第一题就改成 `--exercise 1`。其他设备可将 `mps` 换成 `cuda`、`cpu` 或 `auto`。
+
+这一步会真实调用模型、读取 AlexNet 论文、检查本机并执行 AlexNet 单步实验，也会消耗 API 额度。成功时命令退出码为 `0`，终端显示“验收通过”；本次 `output/smoke.json` 中应有 `"implementation": "solution"` 和 `"checks": "passed"`。报告在 `output/report.md`。这两个文件会覆盖上一次验收结果；如果命令报错，应先看终端错误，不要把之前留下的记录当成本次通过。
+
+`solution/` 只保留在教师本机，已被 Git 忽略。公开仓库没有答案文件，学生克隆后仍按前面的命令测试自己的 `main.py`。

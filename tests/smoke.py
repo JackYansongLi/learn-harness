@@ -97,7 +97,12 @@ def verify(requests, result, requested_device="auto", exercise=2):
 def main():
     parser = argparse.ArgumentParser(description="AlexNet 在线验收，会消耗 DeepSeek 额度")
     parser.add_argument("--exercise", type=int, choices=[1, 2], default=1)
-    parser.add_argument("--impl", choices=["exercise", "solution"], default="exercise")
+    parser.add_argument(
+        "--impl",
+        choices=["exercise", "solution"],
+        default="exercise",
+        help="验收代码：exercise=main.py（默认），solution=本地 solution/agent.py",
+    )
     parser.add_argument("--device", choices=DEVICE_CHOICES, default="auto")
     args = parser.parse_args()
     if args.impl == "solution":

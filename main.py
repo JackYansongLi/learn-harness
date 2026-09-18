@@ -386,7 +386,12 @@ def main(argv=None):
     parser.add_argument("prompt", nargs="?", default=QUESTION)
     parser.add_argument("--pdf", type=Path, help="论文 PDF；省略时使用仓库中的 AlexNet")
     parser.add_argument("--exercise", type=int, choices=[1, 2], default=1, help="选择第几题")
-    parser.add_argument("--impl", choices=["exercise", "solution"], default="exercise")
+    parser.add_argument(
+        "--impl",
+        choices=["exercise", "solution"],
+        default="exercise",
+        help="运行代码：exercise=main.py（默认），solution=本地 solution/agent.py",
+    )
     parser.add_argument("--code", type=Path, help="可选：只读的模型源码文件")
     parser.add_argument("--dataset", type=Path, help="可选：包含 train/val 的 ImageFolder 目录")
     parser.add_argument("--experiment", choices=["alexnet"], help="显式启用课堂模型实验")
