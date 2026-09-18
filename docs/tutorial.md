@@ -90,6 +90,9 @@ Main Agent 根据这些返回结果生成报告，已提供的入口代码会将
 > - 合计：$945+378=1,323$ 万美元，约 **1,300 万美元**。
 >
 > 每秒 50 token 和输入输出比都是为了估算而选的数值，不是 Astra 的实测速率。保持其他假设不变，每秒速率改成 25 或 100 token，费用就分别约为 **660 万或 2,650 万美元**。这里仅算模型 token 费用，不含工具和运行环境费用，也不代表 OpenAI 这次研究的实际成本。
+>
+
+> Question: [Soft analysis, hard analysis, and the finite convergence principle](https://terrytao.wordpress.com/2007/05/23/soft-analysis-hard-analysis-and-the-finite-convergence-principle/)
 
 回到第一题：先找到已经写好的两个 Subagent，再看主循环怎样调用它们。
 
@@ -529,11 +532,11 @@ flowchart TD
 
 先读总入口，再看代码转换和 Subagent 分工：
 
-| 文件 | 里面写了什么 |
-| --- | --- |
-| [`skills/paper2agent/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/SKILL.md) | 论文和附件交给 `paper2skill`，代码仓库交给 `paper2mcp`。需要两类结果时，分别完成后再合在一起。 |
-| [`paper2skill/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2skill/SKILL.md) | 把 PDF、表格和图片整理成阅读资料，并对照原件检查。这部分不执行论文的方法。 |
-| [`paper2mcp/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/SKILL.md) | 运行原仓库代码，提取工具，完成测试，最后打包 MCP 服务。 |
+| 文件                                                                                                                                                                                     | 里面写了什么                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`skills/paper2agent/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/SKILL.md)                                        | 论文和附件交给 `paper2skill`，代码仓库交给 `paper2mcp`。需要两类结果时，分别完成后再合在一起。                                                                                                                                                     |
+| [`paper2skill/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2skill/SKILL.md)                                   | 把 PDF、表格和图片整理成阅读资料，并对照原件检查。这部分不执行论文的方法。                                                                                                                                                                         |
+| [`paper2mcp/SKILL.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/SKILL.md)                                       | 运行原仓库代码，提取工具，完成测试，最后打包 MCP 服务。                                                                                                                                                                                            |
 | [`paper2mcp/references/orchestration.md`](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/references/orchestration.md) | 谁先做、谁可以同时做、谁负责安装依赖、谁可以修改哪些文件。各类 Subagent 的工作说明在同目录的 [`agents/`](https://github.com/jmiao24/Paper2Agent/tree/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2mcp/references/agents) 中。 |
 
 这里有一条要求和前面讨论的独立检查有关：**工具写完后，另开 Subagent 做核验。** 核验者必须与所有实现者不同，不能让原来的 Agent 在同一段对话里换个角色就算检查过了。它要拿到源码、参考输出和测试记录，自己作判断。
@@ -544,14 +547,14 @@ flowchart TD
 
 ### 和本课的对应关系
 
-| 本课中的代码或安排 | Paper2Agent 中对应的做法 |
-| --- | --- |
-| `MainAgent.run()` 分配任务，等 Subagent 返回后继续 | 协调 Agent 安排各项工作，还要检查返回的文件和测试结果，才能进入下一阶段。并行处理多个示例时，需要规定各自修改哪些文件、哪些结果必须等齐。 |
-| 从 `knowledge/difficulty.md` 读取工作说明 | 各类 Subagent 也有自己的工作说明；启动和工具调用由现有的编程 Agent 提供。 |
-| 每次 `Agent.run()` 新建消息列表 | 核验工作交给另开的 Subagent，通过源码、参考输出和记录了解任务。 |
-| `Tool.schema()` 与 `dispatch()` | 通过 MCP 告诉使用者有哪些工具、需要什么参数，再执行调用、返回结果。 |
-| 工具结果放回 `messages`，供下一轮使用 | 执行错误和测试结果决定接下来怎样修改，失败的工具可能被排除。 |
-| 环境 Subagent 检查本机；测试检查工具是否调用、实验是否运行 | 环境 Subagent 还要安装依赖；测试还要比较新工具与原示例的输出，并检查打包后的程序能否重新安装、调用。 |
+| 本课中的代码或安排                                         | Paper2Agent 中对应的做法                                                                                                                  |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `MainAgent.run()` 分配任务，等 Subagent 返回后继续         | 协调 Agent 安排各项工作，还要检查返回的文件和测试结果，才能进入下一阶段。并行处理多个示例时，需要规定各自修改哪些文件、哪些结果必须等齐。 |
+| 从 `knowledge/difficulty.md` 读取工作说明                  | 各类 Subagent 也有自己的工作说明；启动和工具调用由现有的编程 Agent 提供。                                                                 |
+| 每次 `Agent.run()` 新建消息列表                            | 核验工作交给另开的 Subagent，通过源码、参考输出和记录了解任务。                                                                           |
+| `Tool.schema()` 与 `dispatch()`                            | 通过 MCP 告诉使用者有哪些工具、需要什么参数，再执行调用、返回结果。                                                                       |
+| 工具结果放回 `messages`，供下一轮使用                      | 执行错误和测试结果决定接下来怎样修改，失败的工具可能被排除。                                                                              |
+| 环境 Subagent 检查本机；测试检查工具是否调用、实验是否运行 | 环境 Subagent 还要安装依赖；测试还要比较新工具与原示例的输出，并检查打包后的程序能否重新安装、调用。                                      |
 
 ### 创新与实验结果
 
@@ -559,11 +562,11 @@ flowchart TD
 
 作者做了两层评估：先看多少论文能成功生成工具，再看生成的工具能否帮助 Agent 回答问题。
 
-| 实验 | 作者报告的结果 |
-| --- | --- |
-| 转换 100 篇计算生物学论文 | 74 篇成功；这 74 篇提出了 599 个工具，其中 593 个通过自动验证。 |
-| 从成功的 74 篇中整理 300 道基于示例的问题 | 同用 Sonnet 4，Paper2Agent 的准确率为 91.2 ± 1.6%，直接访问仓库的 Claude Code 为 80.3 ± 2.3%。 |
-| 在 AlphaGenome 案例中去掉负责测试和改进的 Agent | 15 道示例题的准确率从 98.7 ± 1.3% 降到 69.3 ± 4.5%。 |
+| 实验                                            | 作者报告的结果                                                                                 |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 转换 100 篇计算生物学论文                       | 74 篇成功；这 74 篇提出了 599 个工具，其中 593 个通过自动验证。                                |
+| 从成功的 74 篇中整理 300 道基于示例的问题       | 同用 Sonnet 4，Paper2Agent 的准确率为 91.2 ± 1.6%，直接访问仓库的 Claude Code 为 80.3 ± 2.3%。 |
+| 在 AlphaGenome 案例中去掉负责测试和改进的 Agent | 15 道示例题的准确率从 98.7 ± 1.3% 降到 69.3 ± 4.5%。                                           |
 
 `±` 是作者报告的标准误。前两项见[正文](https://www.nature.com/articles/s41586-026-11044-y#Sec5)和 [Methods](https://www.nature.com/articles/s41586-026-11044-y#Sec14)，第三项见[补充材料 §7](https://github.com/jmiao24/Paper2Agent/blob/8c2d059165ef8cdcb70dbea76655b9c2b55b38e6/skills/paper2agent/paper2agent-paper/references/supplement.md#7-additional-details-for-large-scale-evaluation-of-paper2agent)。
 
